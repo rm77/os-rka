@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OS-v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E7ECF0; --panel:#F9FBFC; --ink:#15202B; --muted:#586775; --line:#B6C2CC; --soft:#DCE3E9;
+  --new:#5B6B7C;  --newfill:#EEF1F4;
+  --ready:#10857A; --readyfill:#E1F3F0;
+  --run:#D98200;  --runfill:#FFF1D6;
+  --blk:#7449C0;  --blkfill:#EEE6FA;
+  --exit:#8A939C; --exitfill:#EFF1F2;
+  --tdur:.55s;
+  --sans:"Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10171E; --panel:#18222C; --ink:#E4EAF0; --muted:#98A6B3; --line:#344351; --soft:#223040;
+    --new:#91A2B4; --newfill:#1D2832;
+    --ready:#3CC4B4; --readyfill:#0F2D2A;
+    --run:#F5A524; --runfill:#35270B;
+    --blk:#AC8CEB; --blkfill:#261C39;
+    --exit:#7F8993; --exitfill:#1C232A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10171E; --panel:#18222C; --ink:#E4EAF0; --muted:#98A6B3; --line:#344351; --soft:#223040;
+  --new:#91A2B4; --newfill:#1D2832;
+  --ready:#3CC4B4; --readyfill:#0F2D2A;
+  --run:#F5A524; --runfill:#35270B;
+  --blk:#AC8CEB; --blkfill:#261C39;
+  --exit:#7F8993; --exitfill:#1C232A;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45}
+main{max-width:1320px;margin:0 auto;padding:20px 18px 40px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px;margin-bottom:14px}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.05;margin:0;letter-spacing:-.01em}
+header p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.clock{font-size:15px;color:var(--muted)}
+.clock b{font-size:28px;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:6px}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.group{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--soft);border-radius:10px;padding:8px 10px}
+.group > .gl{font-size:13px;color:var(--muted);margin-right:2px}
+button,select{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 11px;cursor:pointer}
+button:hover:not(:disabled),select:hover{border-color:var(--muted)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--ink);color:var(--panel);border-color:var(--ink);font-weight:700}
+:focus-visible{outline:3px solid var(--ready);outline-offset:2px}
+label.chk{display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer}
+label.chk input{width:16px;height:16px;accent-color:var(--ready)}
+
+.top{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}
+.bottom{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--soft);border-radius:14px;padding:14px}
+.card h2{font-size:17px;margin:0 0 10px}
+
+#diaWrap{overflow-x:auto}
+#dia{display:block;width:100%;min-width:560px;height:auto;user-select:none}
+.node rect{stroke-width:2}
+.node{cursor:pointer}
+.node .nlabel{font:700 15px var(--sans)}
+.node .ncount{font:400 13px var(--sans);fill:var(--muted)}
+.st-new rect{fill:var(--newfill);stroke:var(--new)} .st-new .nlabel{fill:var(--new)}
+.st-ready rect{fill:var(--readyfill);stroke:var(--ready)} .st-ready .nlabel{fill:var(--ready)}
+.st-running rect{fill:var(--runfill);stroke:var(--run);stroke-width:3} .st-running .nlabel{fill:var(--run)}
+.st-blocked rect{fill:var(--blkfill);stroke:var(--blk)} .st-blocked .nlabel{fill:var(--blk)}
+.st-exit rect{fill:var(--exitfill);stroke:var(--exit)} .st-exit .nlabel{fill:var(--exit)}
+.st-readySusp rect{fill:var(--readyfill);stroke:var(--ready);stroke-dasharray:7 5} .st-readySusp .nlabel{fill:var(--ready)}
+.st-blockedSusp rect{fill:var(--blkfill);stroke:var(--blk);stroke-dasharray:7 5} .st-blockedSusp .nlabel{fill:var(--blk)}
+.node.busy rect{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--run) 55%,transparent))}
+.edge path.ln{fill:none;stroke:var(--line);stroke-width:2;transition:stroke .25s}
+.edge path.hit{fill:none;stroke:transparent;stroke-width:16;cursor:pointer}
+.edge text{font:400 13px var(--sans);fill:var(--muted);cursor:pointer}
+.edge.hot path.ln{stroke:var(--run);stroke-width:3.5}
+.edge.hot text{fill:var(--ink);font-weight:700}
+.ahead{fill:var(--line)} .ahead.hot{fill:var(--run)}
+.seven{transition:opacity .3s}
+.no7 .seven{opacity:0;pointer-events:none}
+.sel-k rect,.edge.sel-k path.ln{stroke-width:4}
+
+.tok{cursor:pointer;transition:transform var(--tdur) cubic-bezier(.45,.05,.3,1),opacity .3s}
+.tok circle.body{fill:var(--panel);stroke-width:3.2}
+.tok text{font:700 10.5px var(--sans);fill:var(--ink);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.tok .ring{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3;opacity:0}
+.tok.sel .ring{opacity:1}
+.tok.swapped circle.body{stroke-dasharray:4 3}
+.tok.sib{opacity:.55}
+.tok.born{opacity:0}
+.tok:focus{outline:none}
+.tok:focus-visible .ring{opacity:1;stroke:var(--ready);stroke-width:2.5;stroke-dasharray:none}
+
+#explain{margin-top:10px;padding:10px 12px;border-left:4px solid var(--line);background:var(--bg);border-radius:0 8px 8px 0;min-height:58px;font-size:15px}
+#explain strong{display:block;margin-bottom:2px}
+
+.side h3{font-size:14px;margin:14px 0 6px;color:var(--muted);font-weight:700}
+.side h3:first-child{margin-top:0}
+.core{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:var(--bg);margin-bottom:6px;border:2px solid transparent}
+.core.on{border-color:var(--run);background:var(--runfill)}
+.core .cname{font-weight:700;font-size:14px;white-space:nowrap;min-width:48px}
+.core .idle{color:var(--muted);font-size:14px}
+.qdots{display:flex;gap:3px;margin-left:auto}
+.qdots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.qdots i.on{background:var(--run)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;min-height:28px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:13px;padding:2px 9px;border-radius:999px;border:2px solid var(--c);background:var(--panel);color:var(--ink);cursor:pointer;line-height:1.4}
+.chip small{font-weight:400;color:var(--muted)}
+.empty{color:var(--muted);font-size:14px;font-style:italic}
+.qhead{font-size:12px;color:var(--muted);margin-right:2px}
+.mem{font-size:14px;color:var(--muted);margin-top:4px}
+
+#inspector .none{color:var(--muted)}
+.phead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:4px}
+.phead h2{margin:0;font-size:22px}
+.phead .pid{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.pstate{margin:0 0 12px;color:var(--muted);font-size:15px}
+.aspace{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px}
+.shared{border:2px solid var(--pc);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:5px}
+.seg{background:color-mix(in srgb,var(--pc) 12%,var(--panel));border-radius:6px;padding:6px 8px;font-size:14px}
+.seg small{display:block;color:var(--muted);font-size:12.5px}
+.cap{font-size:13px;color:var(--muted);margin:4px 0 0}
+.tcbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;align-content:start}
+.tcb{text-align:left;background:var(--bg);border:2px solid var(--soft);border-radius:10px;padding:8px;font-size:13px;cursor:pointer;display:block;width:100%}
+.tcb.sel{border-color:var(--pc)}
+.tcb .tt{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px}
+.tcb .tt b{font-size:15px}
+.pill{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;color:var(--panel);background:var(--sc)}
+.tcb dl{display:grid;grid-template-columns:auto 1fr;gap:1px 8px;margin:0}
+.tcb dt{color:var(--muted)}
+.tcb dd{margin:0;font-family:var(--mono);font-size:12px}
+.tcb .nx{margin:6px 0 4px;font-size:12.5px;color:var(--ink);min-height:2.6em}
+.plan{display:flex;gap:2px;height:9px}
+.plan span{border-radius:2px;background:var(--line);opacity:.5}
+.plan span.cpu{background:var(--run)} .plan span.io{background:var(--blk)}
+.plan span.done{opacity:.2} .plan span.cur{opacity:1;outline:1.5px solid var(--ink);outline-offset:1px}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
+
+#log{list-style:none;margin:0;padding:0;max-height:430px;overflow-y:auto;font-size:14px}
+#log li{padding:6px 0;border-bottom:1px solid var(--soft);display:grid;grid-template-columns:40px 1fr;gap:6px}
+#log li .t{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px;padding-top:1px}
+#log li.warn{color:var(--blk)}
+.kbd{font-size:13px;color:var(--muted);margin-top:8px}
+kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
+
+@media (max-width:980px){
+  .top,.bottom{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .aspace{grid-template-columns:minmax(0,1fr)}
+  main{padding:14px 10px 30px}
+}
+@media (prefers-reduced-motion:reduce){
+  .tok{transition:none}
+}
+
+.shead{font-size:13px;font-weight:700;color:var(--pc);margin:2px 2px 4px}
+.code{font-family:var(--mono);font-size:12.5px;background:var(--bg);border-radius:7px;padding:4px 0;overflow-x:auto}
+.code .row{display:grid;grid-template-columns:70px 150px minmax(0,1fr) auto;gap:8px;align-items:center;padding:2px 8px;min-height:22px;white-space:nowrap;transition:background .3s}
+.code .lbl{color:var(--pc);font-weight:600;padding-top:5px}
+.code .addr{color:var(--muted)}
+.code .cm{color:var(--muted);overflow:hidden;text-overflow:ellipsis;font-family:var(--sans);font-size:12.5px}
+.code .dim .addr,.code .dim .asm{opacity:.3}
+.code .dim .cm{font-style:italic}
+.code .load{background:color-mix(in srgb,var(--ready) 22%,transparent)}
+.code .exec{background:var(--runfill);box-shadow:inset 4px 0 0 var(--run)}
+.code .exec .asm{font-weight:600}
+.pcm{font:700 11px var(--sans);border:1.5px solid var(--pc);color:var(--ink);border-radius:999px;padding:0 6px;margin-left:3px;background:var(--panel)}
+.pcm.run{background:var(--run);border-color:var(--run);color:#fff}
+.mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:5px}
+.stdout{font-family:var(--mono);font-size:12.5px;background:var(--ink);color:var(--panel);border-radius:7px;padding:8px 10px;min-height:38px;white-space:pre-wrap}
+.stdout .pr{opacity:.55}
+.core{flex-wrap:wrap}
+.core .ci{flex-basis:100%;font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.core .ci small{font-family:var(--sans);color:var(--muted);font-size:12px;margin-right:6px}
+.donecard{border:2px solid var(--pc);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.donecard h3{margin:0 0 6px;font-size:18px}
+.donecard p{margin:4px 0}
+.tbar{display:flex;height:16px;border-radius:5px;overflow:hidden;margin:10px 0 6px}
+.tbar span{height:100%}
+.tleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
+.tleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}
+.stats div{background:var(--bg);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--muted)}
+.stats b{display:block;font-size:20px;color:var(--ink)}
+@media (max-width:560px){.code .row{grid-template-columns:62px 140px 0 auto}.code .cm{display:none}}
+.ptabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--soft)}
+.ptab{display:flex;align-items:center;gap:8px;background:var(--bg);border:2px solid transparent;border-radius:9px;padding:5px 10px 5px 8px;font-size:14px}
+.ptab .pn{font-weight:700;font-size:16px;color:var(--c)}
+.ptab .pf{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ptab .pill{font-size:11px}
+.ptab.on{border-color:var(--c);background:var(--panel)}
+.ptab.gone{opacity:.6}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Process and thread lifecycle</h1>
+      <p>A live model of how an operating system loads a program, runs it instruction by instruction, and moves its threads between states until it completes. Click any state or arrow to see what it means, and click a token to open its process.</p>
+    </div>
+    <div class="clock" aria-live="polite">Tick<b id="tick">0</b></div>
+  </header>
+
+  <div class="controls">
+    <div class="group">
+      <button id="btnPlay" class="primary">Play</button>
+      <button id="btnStep">Step</button>
+      <select id="speed" aria-label="Speed">
+        <option value="1500">Slow</option>
+        <option value="900" selected>Normal</option>
+        <option value="450">Fast</option>
+      </select>
+    </div>
+    <div class="group">
+      <span class="gl">New process with</span>
+      <select id="nThreads" aria-label="Threads in new process">
+        <option value="1">1 thread</option>
+        <option value="2">2 threads</option>
+        <option value="3">3 threads</option>
+      </select>
+      <button id="btnNew">Create process</button>
+    </div>
+    <div class="group">
+      <span class="gl">CPU cores</span>
+      <select id="cores" aria-label="CPU cores"><option>1</option><option>2</option><option>4</option></select>
+      <span class="gl">Time slice</span>
+      <select id="quantum" aria-label="Time slice in ticks"><option value="2">2 instructions</option><option value="3" selected>3 instructions</option><option value="5">5 instructions</option></select>
+    </div>
+    <div class="group">
+      <span class="gl">Threads</span>
+      <select id="model" aria-label="Threading model">
+        <option value="1:1">Kernel threads (one-to-one)</option>
+        <option value="N:1">User threads (many-to-one)</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="seven"> Swapping (7-state)</label>
+      <button id="btnReset">Reset</button>
+    </div>
+  </div>
+
+  <div class="top">
+    <section class="card">
+      <div id="diaWrap"><svg id="dia" viewBox="225 0 775 585" role="img" aria-label="State diagram of process and thread states with moving tokens"></svg></div>
+      <div id="explain" aria-live="polite"></div>
+    </section>
+    <aside class="card side" id="side"></aside>
+  </div>
+
+  <div class="bottom">
+    <section class="card" id="inspector"></section>
+    <section class="card">
+      <h2>What just happened</h2>
+      <ol id="log" reversed></ol>
+      <p class="kbd"><kbd>Space</kbd> play or pause, <kbd>S</kbd> step, <kbd>N</kbd> new process</p>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+const SVGNS = "http://www.w3.org/2000/svg";
+const PCOL = ["#D1495B","#2E7FD6","#2A9D5C","#C2560C","#8E44AD","#0E8AA0","#B8860B","#C0397A"];
+const NW = 170, NH = 130, MAX_ALIVE = 15, CODE_BASE = 0x401000, LOAD_RATE = 5;
+
+const ST = {
+  new:        {label:"New",                x:330, y:85},
+  ready:      {label:"Ready",              x:330, y:300},
+  running:    {label:"Running",            x:640, y:300},
+  exit:       {label:"Terminated",         x:880, y:85},
+  blocked:    {label:"Blocked",            x:485, y:500},
+  readySusp:  {label:"Ready, suspended",   x:95,  y:300, seven:true},
+  blockedSusp:{label:"Blocked, suspended", x:95,  y:500, seven:true}
+};
+const STCOL = {new:"--new",ready:"--ready",running:"--run",blocked:"--blk",exit:"--exit",readySusp:"--ready",blockedSusp:"--blk"};
+
+const EDGES = {
+  admit:    {d:"M330,150 L330,233", lx:340, ly:196, a:"start", label:"admit"},
+  dispatch: {d:"M415,284 L553,284", lx:484, ly:274, a:"middle", label:"dispatch"},
+  timeout:  {d:"M555,318 L417,318", lx:484, ly:338, a:"middle", label:"timeout"},
+  finish:   {d:"M700,235 L826,151", lx:772, ly:208, a:"start", label:"exit"},
+  wait:     {d:"M620,365 L549,434", lx:598, ly:412, a:"start", label:"wait (I/O, join)"},
+  wake:     {d:"M421,434 L350,366", lx:378, ly:412, a:"end", label:"event done"},
+  admitSusp:{d:"M245,88 Q95,88 95,233", lx:150, ly:76, a:"middle", label:"admit, memory full", seven:true},
+  swapOutR: {d:"M245,280 L182,280", lx:213, ly:270, a:"middle", label:"swap out", seven:true},
+  swapInR:  {d:"M182,322 L243,322", lx:213, ly:342, a:"middle", label:"swap in", seven:true},
+  swapOutB: {d:"M400,482 L182,482", lx:290, ly:472, a:"middle", label:"swap out", seven:true},
+  swapInB:  {d:"M182,520 L398,520", lx:290, ly:540, a:"middle", label:"swap in", seven:true},
+  wakeSusp: {d:"M95,435 L95,367",   lx:105, ly:405, a:"start", label:"event done", seven:true}
+};
+
+const EXPLAIN = {
+  new:["New (loading)","exec() has started: the kernel reads the executable's header, creates the PCB and an empty address space, and the loader copies the program's instructions from disk into the code segment. Last it sets up the stack and points the PC at the entry point. Open a process in New to watch its code arrive in memory."],
+  ready:["Ready","Loaded and able to run; only a CPU is missing. It waits in the ready queue and the scheduler takes from the front. In this model the scheduler is round robin."],
+  running:["Running","A CPU core is fetching, decoding and executing this thread's instructions, one per tick here. With N cores, at most N threads can be Running at the same moment."],
+  blocked:["Blocked (waiting)","Cannot continue until an event happens: an I/O system call finishing, or join() waiting for other threads. Giving it the CPU would be wasted, so it is kept off the ready queue."],
+  exit:["Terminated","The thread executed exit() or thread_exit, or the process was killed. The OS keeps the exit status for a moment so the parent can collect it (a zombie, in Unix terms), then frees the PCB or TCB."],
+  readySusp:["Ready, suspended","Could run, but its memory image has been swapped out to disk to make room for others. It has to be swapped back in before it can be dispatched."],
+  blockedSusp:["Blocked, suspended","Waiting for an event and also swapped out to disk. If the event arrives first, it moves to Ready, suspended, and still needs a swap-in."],
+  admit:["Admit","Loading is finished and the long-term scheduler accepts the process: it joins the ready queue with its PC at the first instruction."],
+  dispatch:["Dispatch","The short-term scheduler picks the thread at the head of the ready queue and performs a context switch: it saves the previous thread's registers and loads this thread's PC, stack pointer and registers from its TCB."],
+  timeout:["Timeout (preemption)","A timer interrupt fires when the time slice runs out, here after a fixed number of instructions. The OS takes the CPU away and puts the thread at the back of the ready queue. Its PC is saved, so it resumes at exactly the next instruction later."],
+  finish:["Exit","The thread executes thread_exit, or main executes exit(), or the process is killed. exit() ends every thread of the process. When the last thread ends, the process has completed."],
+  wait:["Wait","The running thread executes a system call that has to wait: read(), recv() or write() on a device, or join() for other threads. The OS marks it Blocked and gives the CPU to someone else."],
+  wake:["Event done","A device raises an interrupt when its transfer finishes, or the threads being joined have all exited. The waiting thread returns to Ready and queues like everyone else."],
+  admitSusp:["Admit into swap","Memory is full, so the new process is admitted but its image is placed in swap space on disk."],
+  swapOutR:["Swap out (ready)","To free memory, the OS writes the whole process image to disk. Every thread of that process leaves memory together, because they share one address space."],
+  swapInR:["Swap in (ready)","Memory has room again, so the process image is read back from disk and its threads rejoin the ready queue."],
+  swapOutB:["Swap out (blocked)","Blocked processes are the best candidates for swapping: they could not use the CPU anyway."],
+  swapInB:["Swap in (blocked)","The process returns to memory but is still waiting for its event."],
+  wakeSusp:["Event done while swapped","The event arrived while the process was on disk. It is now ready, but still has to be swapped in before it can run."]
+};
+
+// ---------- programs ----------
+const WORKER = [
+  {lbl:"worker"},
+  ["mov rcx, 2",     {op:"mov", r:"rcx", imm:2}, "do 2 rounds"],
+  {lbl:"wloop"},
+  ["syscall recv",   {op:"sys", k:"io", dev:"network", n:2, ret:64, name:"recv()"}, "wait for a network packet"],
+  ["add [count], 1", {op:"addm", v:"count", imm:1}, "update the shared global"],
+  ["sub rcx, 1",     {op:"sub", r:"rcx", imm:1}, "one round done"],
+  ["jnz wloop",      {op:"jnz", to:"wloop"}, "loop while rcx is not 0"],
+  ["thread_exit",    {op:"sys", k:"texit"}, "this thread ends"]
+];
+const PROG_SRC = {
+  sum: {file:"./sum", main:[
+    {lbl:"main"},
+    ["mov rcx, 3",       {op:"mov", r:"rcx", imm:3}, "loop counter"],
+    ["mov rax, 0",       {op:"mov", r:"rax", imm:0}, "running total"],
+    {lbl:"loop"},
+    ["add rax, rcx",     {op:"add", r:"rax", src:"rcx"}, "total += counter"],
+    ["sub rcx, 1",       {op:"sub", r:"rcx", imm:1}, "counter -= 1"],
+    ["jnz loop",         {op:"jnz", to:"loop"}, "repeat while rcx is not 0"],
+    ["mov [total], rax", {op:"store", v:"total", r:"rax"}, "save to global data"],
+    ["syscall write",    {op:"sys", k:"io", dev:"display", n:2, name:"write()", out:"total = {total}"}, "print the result"],
+    ["syscall join",     {op:"sys", k:"join"}, "wait for other threads"],
+    ["syscall exit 0",   {op:"sys", k:"exit", code:0}, "end the process"]
+  ]},
+  readfile: {file:"./readfile", main:[
+    {lbl:"main"},
+    ["mov rdi, 3",       {op:"mov", r:"rdi", imm:3}, "file descriptor 3"],
+    ["syscall read",     {op:"sys", k:"io", dev:"disk", n:3, ret:512, name:"read()"}, "read a block from disk"],
+    ["mov [total], rax", {op:"store", v:"total", r:"rax"}, "bytes read, into globals"],
+    ["syscall write",    {op:"sys", k:"io", dev:"display", n:2, name:"write()", out:"read {total} bytes"}, "print a message"],
+    ["syscall join",     {op:"sys", k:"join"}, "wait for other threads"],
+    ["syscall exit 0",   {op:"sys", k:"exit", code:0}, "end the process"]
+  ]},
+  counter: {file:"./counter", main:[
+    {lbl:"main"},
+    ["mov rax, 0",       {op:"mov", r:"rax", imm:0}, "clear rax"],
+    ["syscall read",     {op:"sys", k:"io", dev:"keyboard", n:4, ret:1, name:"read()"}, "wait for a key press"],
+    ["syscall join",     {op:"sys", k:"join"}, "wait for the workers"],
+    ["mov rax, [count]", {op:"load", r:"rax", v:"count"}, "read the shared global"],
+    ["syscall write",    {op:"sys", k:"io", dev:"display", n:2, name:"write()", out:"count = {count}"}, "print the result"],
+    ["syscall exit 0",   {op:"sys", k:"exit", code:0}, "end the process"]
+  ]}
+};
+const PROGS = {};
+for (const [name, src] of Object.entries(PROG_SRC)){
+  const rows = [], code = [], labels = {};
+  for (const item of [...src.main, ...WORKER]){
+    if (item.lbl){ labels[item.lbl] = code.length; rows.push({lbl:item.lbl}); continue; }
+    const ins = Object.assign({text:item[0], cm:item[2], idx:code.length, addr:CODE_BASE + code.length*4}, item[1]);
+    code.push(ins); rows.push(ins);
+  }
+  PROGS[name] = {name, file:src.file, rows, code, labels};
+}
+
+// ---------- state ----------
+let procs, threads, cores, readyQ, done, tick, seq, pidSeq, letterIdx, selPid, selTid, timer = null, explainKey = null;
+const cfg = {cores:1, quantum:3, model:"1:1", seven:false, mem:3, speed:900};
+const tokens = new Map();
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const hex = n => "0x" + n.toString(16).padStart(6,"0");
+const alive = () => threads.filter(t => t.state !== "exit").length;
+const resident = () => procs.filter(p => !p.swapped && p.threads.some(t => t.state !== "exit" && t.state !== "new")).length;
+const chip = t => `<span class="chip" data-tid="${t.id}" style="--c:${t.p.color}">${t.id}</span>`;
+const pchip = p => `<span class="chip" data-pid="${p.pid}" style="--c:${p.color}">${p.name}</span>`;
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const code = t => `<code>${esc(t)}</code>`;
+
+// ---------- log ----------
+function log(html, warn){
+  const li = document.createElement("li");
+  if (warn) li.className = "warn";
+  li.innerHTML = `<span class="t">t${tick}</span><span>${html}</span>`;
+  const ol = $("#log");
+  ol.prepend(li);
+  while (ol.children.length > 90) ol.lastChild.remove();
+}
+
+// ---------- creation ----------
+function newProcess(n, progName){
+  if (alive() + n > MAX_ALIVE){ log(`Too many live threads for this diagram (limit ${MAX_ALIVE}). Let some finish or kill a process first.`, true); return; }
+  const prog = PROGS[progName || (n > 1 ? "counter" : (letterIdx % 2 ? "readfile" : "sum"))];
+  const name = "ABCDEFGHJKLMNPQRSTUVWXYZ"[letterIdx % 24];
+  const p = {pid:++pidSeq, name, color:PCOL[letterIdx % PCOL.length], prog, threads:[], swapped:false, manual:false, tcount:0,
+             born:tick, created:tick, load:{stage:"exec", loaded:0, from:0, at:-1}, data:{total:0, count:0}, stdout:[],
+             acct:{new:0, ready:0, running:0, blocked:0, susp:0}, instr:0, switches:0, record:null};
+  letterIdx++;
+  procs.push(p);
+  for (let i=0;i<n;i++) addThread(p, true);
+  selPid = p.pid; selTid = p.threads[0].id;
+  log(`${pchip(p)} created with PID ${p.pid} to run ${code(prog.file)}${n>1?` with ${n} threads`:""}. The OS allocates a PCB; the program is still on disk.`);
+}
+
+function addThread(p, initial){
+  p.tcount++;
+  const entry = p.tcount === 1 ? "main" : "worker";
+  const t = {id:p.name+p.tcount, p, seq:++seq, state:"new", entry, pc:p.prog.labels[entry], last:-1, lastTick:-1, z:false,
+             regs:{rax:0, rbx:0, rcx:0, rdi:0}, sp:0x7ff000 - (p.tcount-1)*0x10000, core:-1, q:0, wait:null,
+             exitAt:0, sib:false, moved:true};
+  p.threads.push(t); threads.push(t);
+  if (!initial){
+    if (p.threads.some(s => s !== t && s.state === "new")) t.state = "new";
+    else if (p.swapped) t.state = "readySusp";
+    else if (cfg.model === "N:1" && blocker(p)){ t.state = "blocked"; t.sib = true; }
+    else { t.state = "ready"; readyQ.push(t); }
+    log(`${chip(t)} created inside ${pchip(p)}, starting at ${code("worker")} (${hex(p.prog.code[t.pc].addr)}). No loading needed: the code is already in ${p.name}'s memory. The thread only gets its own stack and registers (a TCB).`);
+  }
+  return t;
+}
+const blocker = p => p.threads.find(s => (s.state === "blocked" || s.state === "blockedSusp") && !s.sib && s.wait && s.wait.kind === "io");
+
+// ---------- transitions ----------
+function move(t, to, edge){
+  const from = t.state;
+  if (from === "ready") readyQ = readyQ.filter(x => x !== t);
+  if (from === "running"){ cores[t.core] = null; t.core = -1; }
+  t.state = to; t.moved = true;
+  if (to === "ready") readyQ.push(t);
+  if (to === "exit"){ t.exitAt = tick; t.sib = false; t.wait = null; }
+  if (edge) flash(edge);
+}
+
+function block(t, wait){
+  t.wait = wait;
+  move(t, "blocked", "wait");
+  if (wait.kind !== "io" || cfg.model !== "N:1") return;
+  const sibs = t.p.threads.filter(s => s !== t && s.state === "ready");
+  sibs.forEach(s => { move(s, "blocked"); s.sib = true; });
+  if (sibs.length) log(`With user-level threads the kernel only sees one schedulable entity for ${pchip(t.p)}. ${sibs.map(chip).join(" ")} ${sibs.length>1?"are":"is"} stuck too, even though ${sibs.length>1?"they have":"it has"} instructions to run.`, true);
+}
+
+function wakeThread(t){
+  const susp = t.state === "blockedSusp";
+  t.wait = null;
+  move(t, susp ? "readySusp" : "ready", susp ? "wakeSusp" : "wake");
+  return susp;
+}
+
+function finishIO(t){
+  const w = t.wait;
+  if (w.ret !== undefined) t.regs.rax = w.ret;
+  if (w.out) t.p.stdout.push(w.out);
+  const susp = wakeThread(t);
+  log(`The ${w.dev} raised an interrupt: ${chip(t)}'s ${code(w.name)} is complete${w.out?` and printed ${code(w.out)}`:""}${w.ret!==undefined?`, returning ${w.ret} in rax`:""}. ${susp ? "It is Ready, but still on disk." : "Back to the ready queue."}`);
+  if (cfg.model === "N:1"){
+    const sibs = t.p.threads.filter(s => s.sib);
+    sibs.forEach(s => { s.sib = false; move(s, s.state === "blockedSusp" ? "readySusp" : "ready"); });
+    if (sibs.length) log(`${sibs.map(chip).join(" ")} can be scheduled again now that ${pchip(t.p)} is unblocked.`);
+  }
+}
+
+function exitThread(t){
+  if (t.state === "running") flash("finish");
+  move(t, "exit");
+  const p = t.p;
+  // wake a joiner if everyone else is gone
+  const joiner = p.threads.find(s => s.wait && s.wait.kind === "join");
+  if (joiner && p.threads.every(s => s === joiner || s.state === "exit")){
+    wakeThread(joiner);
+    log(`All other threads of ${pchip(p)} have ended, so ${chip(joiner)}'s ${code("join()")} returns.`);
+  }
+}
+
+function complete(p, status, how){
+  if (p.record) return;
+  p.swapped = false; p.manual = false;
+  p.record = {pid:p.pid, name:p.name, color:p.color, prog:p.prog, status, how, created:p.created, finished:tick,
+              acct:{...p.acct}, instr:p.instr, switches:p.switches, stdout:p.stdout.slice(), data:{...p.data}, nthreads:p.tcount};
+  done.unshift(p.record);
+  if (done.length > 8) done.pop();
+}
+
+const eligible = t => t.state === "ready" && !t.moved &&
+  (cfg.model === "1:1" || !t.p.threads.some(s => s.state === "running"));
+
+function dispatch(){
+  for (let c=0;c<cores.length;c++){
+    if (cores[c]) continue;
+    const t = readyQ.find(eligible);
+    if (!t) continue;
+    move(t, "running", "dispatch");
+    t.core = c; cores[c] = t; t.q = cfg.quantum; t.p.switches++;
+    log(`CPU ${c} dispatched ${chip(t)}. Context switch: its registers are restored from the TCB and the PC resumes at ${hex(t.p.prog.code[t.pc].addr)} ${code(t.p.prog.code[t.pc].text)}.`);
+  }
+}
+
+// ---------- the CPU: execute one instruction ----------
+function execute(t){
+  const p = t.p, ins = p.prog.code[t.pc], R = t.regs;
+  t.last = t.pc; t.lastTick = tick; p.instr++;
+  let next = t.pc + 1;
+  switch (ins.op){
+    case "mov":   R[ins.r] = ins.imm; break;
+    case "store": p.data[ins.v] = R[ins.r]; break;
+    case "load":  R[ins.r] = p.data[ins.v]; break;
+    case "add":   R[ins.r] += ins.src ? R[ins.src] : ins.imm; t.z = R[ins.r] === 0; break;
+    case "sub":   R[ins.r] -= ins.imm; t.z = R[ins.r] === 0; break;
+    case "addm":  p.data[ins.v] += ins.imm; break;
+    case "jnz":   if (!t.z) next = p.prog.labels[ins.to]; break;
+  }
+  t.pc = next;
+  return ins;
+}
+
+function runOnCore(t){
+  const ins = execute(t);
+  t.q--;
+  if (ins.op === "sys"){
+    const p = t.p;
+    if (ins.k === "io"){
+      const out = ins.out ? ins.out.replace(/\{(\w+)\}/g, (_,v) => p.data[v]) : null;
+      block(t, {kind:"io", dev:ins.dev, left:ins.n, name:ins.name, ret:ins.ret, out});
+      log(`${chip(t)} executed ${code(ins.text)}: a ${code(ins.name)} on the ${ins.dev}. The CPU cannot wait for a device, so the thread is Blocked and the core is freed.`);
+      return;
+    }
+    if (ins.k === "join"){
+      const others = p.threads.filter(s => s !== t && s.state !== "exit");
+      if (others.length){
+        block(t, {kind:"join"});
+        log(`${chip(t)} executed ${code("syscall join")} and blocks until ${others.map(chip).join(" ")} finish${others.length>1?"":"es"}.${cfg.model==="N:1"?" A join is handled inside the thread library, so the other threads keep running.":""}`);
+        return;
+      }
+    }
+    if (ins.k === "exit"){
+      const others = p.threads.filter(s => s !== t && s.state !== "exit");
+      others.forEach(s => move(s, "exit"));
+      exitThread(t);
+      complete(p, ins.code, "exit");
+      log(`${chip(t)} executed ${code(ins.text)}. ${pchip(p)} has completed execution with exit status ${ins.code} after ${p.instr} instructions.${others.length?` exit() also ended ${others.map(chip).join(" ")}.`:""} Its memory and files are released.`);
+      return;
+    }
+    if (ins.k === "texit"){
+      exitThread(t);
+      log(`${chip(t)} executed ${code("thread_exit")}. Its stack and TCB are freed; ${pchip(p)} lives on.`);
+      if (p.threads.every(s => s.state === "exit")) complete(p, 0, "exit");
+      return;
+    }
+  }
+  if (t.q <= 0){
+    if (readyQ.some(x => x !== t && eligible(x))){
+      move(t, "ready", "timeout");
+      log(`${chip(t)} ran ${cfg.quantum} instructions and its time slice ended. Timer interrupt: PC ${hex(t.p.prog.code[t.pc].addr)} is saved in its TCB and it goes to the back of the ready queue.`);
+    } else t.q = cfg.quantum;
+  }
+}
+
+// ---------- loader ----------
+function loadStep(p){
+  const L = p.load, len = p.prog.code.length;
+  if (L.at === tick) return;
+  L.at = tick;
+  if (L.stage === "exec"){
+    L.stage = "copy";
+    log(`${pchip(p)}: ${code(`exec("${p.prog.file}")`)}. The kernel reads the executable's header and creates an empty address space. The code is still on disk.`);
+  } else if (L.stage === "copy"){
+    L.from = L.loaded;
+    L.loaded = Math.min(len, L.loaded + LOAD_RATE);
+    if (L.loaded === len) L.stage = "setup";
+  } else if (L.stage === "setup"){
+    L.stage = "done";
+    log(`${pchip(p)}: loader finished. ${len} instructions are in memory at ${hex(CODE_BASE)}, global data is zeroed, a stack is set up, and the PC points at ${code("main")}.`);
+  } else if (L.stage === "done") return "admit";
+}
+
+// ---------- clock ----------
+function step(){
+  tick++;
+  threads.forEach(t => t.moved = false);
+
+  // reap terminated entries
+  for (const t of [...threads]){
+    if (t.state === "exit" && tick - t.exitAt >= 4){
+      threads.splice(threads.indexOf(t),1);
+      t.p.threads.splice(t.p.threads.indexOf(t),1);
+      if (selTid === t.id) selTid = t.p.threads[0]?.id ?? null;
+      if (!t.p.threads.length) procs.splice(procs.indexOf(t.p),1);
+    }
+  }
+
+  // each core executes one instruction
+  cores.forEach(t => { if (t && !t.moved) runOnCore(t); });
+
+  // devices make progress
+  for (const t of threads){
+    if (t.moved || t.sib || !t.wait || t.wait.kind !== "io") continue;
+    if (--t.wait.left <= 0) finishIO(t);
+  }
+
+  // loading and admission
+  for (const p of procs){
+    const fresh = p.threads.filter(t => t.state === "new" && !t.moved);
+    if (!fresh.length || tick <= p.born) continue;
+    if (loadStep(p) !== "admit") continue;
+    if (cfg.seven && resident() >= cfg.mem){
+      p.swapped = true; p.manual = false;
+      fresh.forEach(t => move(t, "readySusp", "admitSusp"));
+      log(`Memory already holds ${cfg.mem} processes, so ${pchip(p)} is admitted straight into swap space on disk.`, true);
+    } else {
+      fresh.forEach(t => move(t, "ready", "admit"));
+      log(`${pchip(p)} admitted: ${fresh.length>1?"its threads join":"it joins"} the ready queue.`);
+    }
+  }
+
+  // medium-term scheduler (swapper)
+  if (cfg.seven){
+    while (resident() < cfg.mem){
+      const p = procs.find(p => p.swapped && !p.manual && p.threads.some(t => t.state === "readySusp" && !t.moved));
+      if (!p) break;
+      swapIn(p);
+    }
+  }
+
+  dispatch();
+
+  // time accounting for the completion report
+  for (const p of procs){
+    if (p.record) continue;
+    const s = procState(p);
+    const k = s === "New" ? "new" : s === "Running" ? "running" : s === "Ready" ? "ready" : s === "Blocked" ? "blocked" : "susp";
+    p.acct[k]++;
+  }
+  render();
+}
+
+function swapOut(p, manual){
+  p.swapped = true; p.manual = manual;
+  for (const t of p.threads){
+    if (t.state === "running"){ flash("timeout"); move(t, "readySusp", "swapOutR"); }
+    else if (t.state === "ready") move(t, "readySusp", "swapOutR");
+    else if (t.state === "blocked") move(t, "blockedSusp", "swapOutB");
+  }
+  log(`${pchip(p)} was swapped out to disk${manual?"":" to make room"}. All its threads leave memory together because they share one address space.`);
+}
+function swapIn(p){
+  p.swapped = false; p.manual = false;
+  for (const t of p.threads){
+    if (t.state === "readySusp") move(t, "ready", "swapInR");
+    else if (t.state === "blockedSusp") move(t, "blocked", "swapInB");
+  }
+  log(`${pchip(p)} was swapped back into memory.`);
+}
+function kill(p){
+  p.threads.filter(t => t.state !== "exit").forEach(t => { if (t.state === "running") flash("finish"); move(t, "exit"); });
+  complete(p, 137, "killed");
+  log(`${pchip(p)} was killed with SIGKILL (like kill -9). Every thread ends at once, mid-instruction stream, with exit status 137.`, true);
+}
+
+// ---------- flashing edges ----------
+const flashTimers = {};
+function flash(k){
+  const g = document.querySelector(`.edge[data-k="${k}"]`);
+  if (!g) return;
+  g.classList.add("hot");
+  g.querySelector("path.ln").setAttribute("marker-end","url(#ahHot)");
+  clearTimeout(flashTimers[k]);
+  flashTimers[k] = setTimeout(() => {
+    g.classList.remove("hot");
+    g.querySelector("path.ln").setAttribute("marker-end","url(#ah)");
+  }, Math.max(500, cfg.speed*0.7));
+}
+
+// ---------- build diagram ----------
+function buildSVG(){
+  const svg = $("#dia");
+  let h = `<defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahead" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ahHot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ahead hot" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>`;
+  for (const [k,e] of Object.entries(EDGES)){
+    h += `<g class="edge${e.seven?" seven":""}" data-k="${k}" data-x="${k}">
+      <path class="ln" d="${e.d}" marker-end="url(#ah)"/>
+      <path class="hit" d="${e.d}"/>
+      <text x="${e.lx}" y="${e.ly}" text-anchor="${e.a}">${e.label}</text></g>`;
+  }
+  for (const [k,s] of Object.entries(ST)){
+    const x = s.x - NW/2, y = s.y - NH/2;
+    h += `<g class="node st-${k}${s.seven?" seven":""}" data-x="${k}">
+      <rect x="${x}" y="${y}" width="${NW}" height="${NH}" rx="14"/>
+      <text class="nlabel" x="${x+12}" y="${y+22}">${s.label}</text>
+      <text class="ncount" id="cnt-${k}" x="${x+NW-12}" y="${y+22}" text-anchor="end"></text></g>`;
+  }
+  h += `<g id="tokLayer"></g>`;
+  svg.innerHTML = h;
+  svg.addEventListener("click", e => {
+    const tok = e.target.closest(".tok");
+    if (tok){ selectThread(tok.dataset.tid); return; }
+    const x = e.target.closest("[data-x]");
+    if (x) explain(x.dataset.x);
+  });
+  svg.addEventListener("keydown", e => {
+    const tok = e.target.closest(".tok");
+    if (tok && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); e.stopPropagation(); selectThread(tok.dataset.tid); }
+  });
+}
+
+function explain(k){
+  explainKey = k;
+  document.querySelectorAll(".sel-k").forEach(n => n.classList.remove("sel-k"));
+  const box = $("#explain");
+  if (!k || !EXPLAIN[k]){
+    box.innerHTML = `<strong>How to read this</strong>Each circle is a thread, ringed in its process's colour. Every process runs a small real program, one instruction per tick: open one below to watch it load, run line by line, and finish. Dashed rings mean the process is swapped out to disk.`;
+    box.style.borderLeftColor = "var(--line)";
+    return;
+  }
+  const el = document.querySelector(`[data-x="${k}"]`);
+  if (el) el.classList.add("sel-k");
+  box.innerHTML = `<strong>${EXPLAIN[k][0]}</strong>${EXPLAIN[k][1]}`;
+  box.style.borderLeftColor = ST[k] ? `var(${STCOL[k]})` : "var(--run)";
+}
+
+function selectThread(id){
+  const t = threads.find(x => x.id === id);
+  if (!t) return;
+  selTid = t.id; selPid = t.p.pid;
+  render();
+}
+
+// ---------- render ----------
+function slot(k, i){
+  const s = ST[k], col = i % 5, row = Math.min(Math.floor(i/5), 2);
+  return [s.x - 60 + col*30, s.y - NH/2 + 46 + row*28];
+}
+
+function render(){
+  $("#tick").textContent = tick;
+  $("#dia").setAttribute("viewBox", cfg.seven ? "0 0 1000 585" : "225 0 775 585");
+  $("#dia").classList.toggle("no7", !cfg.seven);
+
+  const by = {}; for (const k in ST) by[k] = [];
+  by.ready = readyQ.slice();
+  for (const t of [...threads].sort((a,b) => a.seq-b.seq)){
+    if (t.state === "ready") continue;
+    by[t.state].push(t);
+  }
+  by.running.sort((a,b) => a.core-b.core);
+  for (const k in ST) $("#cnt-"+k).textContent = by[k].length || "";
+  document.querySelector(".node.st-running").classList.toggle("busy", by.running.length > 0);
+
+  const layer = $("#tokLayer");
+  const seen = new Set();
+  for (const k in by){
+    by[k].forEach((t,i) => {
+      seen.add(t.id);
+      const [x,y] = slot(k,i);
+      let g = tokens.get(t.id);
+      if (!g){
+        g = document.createElementNS(SVGNS,"g");
+        g.setAttribute("class","tok born");
+        g.setAttribute("tabindex","0");
+        g.setAttribute("role","button");
+        g.dataset.tid = t.id;
+        g.innerHTML = `<circle class="ring" r="17"/><circle class="body" r="12.5" stroke="${t.p.color}"/><text>${t.id}</text>`;
+        g.style.transition = "none";
+        g.style.transform = `translate(${x}px,${y}px)`;
+        layer.appendChild(g);
+        tokens.set(t.id, g);
+        g.getBoundingClientRect();
+        requestAnimationFrame(() => { g.style.transition = ""; g.classList.remove("born"); });
+      }
+      g.style.transform = `translate(${x}px,${y}px)`;
+      g.classList.toggle("sel", t.id === selTid);
+      g.classList.toggle("swapped", t.state === "readySusp" || t.state === "blockedSusp");
+      g.classList.toggle("sib", t.sib);
+      g.setAttribute("aria-label", `Thread ${t.id} of process ${t.p.name}, ${ST[t.state].label}`);
+    });
+  }
+  for (const [id,g] of tokens){ if (!seen.has(id)){ g.remove(); tokens.delete(id); } }
+
+  renderSide();
+  renderInspector();
+  $("#btnPlay").textContent = timer ? "Pause" : "Play";
+}
+
+function renderSide(){
+  let h = `<h3>CPU cores</h3>`;
+  cores.forEach((t,c) => {
+    const dots = t ? Array.from({length:cfg.quantum},(_,i)=>`<i class="${i < t.q ? "on":""}"></i>`).join("") : "";
+    let ci = "";
+    if (t){
+      const ran = t.lastTick === tick && t.last >= 0;
+      const ins = t.p.prog.code[ran ? t.last : t.pc];
+      ci = `<div class="ci"><small>${ran ? "executed" : "next"}</small>${hex(ins.addr)}  ${esc(ins.text)}</div>`;
+    }
+    h += `<div class="core${t?" on":""}"><span class="cname">CPU ${c}</span>${t ? chip(t) : `<span class="idle">idle</span>`}<span class="qdots" title="Time slice left">${dots}</span>${ci}</div>`;
+  });
+  h += `<h3>Ready queue</h3><div class="chips">${readyQ.length ? `<span class="qhead">head</span>` + readyQ.map(chip).join("") : `<span class="empty">empty</span>`}</div>`;
+  const waiting = threads.filter(t => t.state === "blocked" || t.state === "blockedSusp");
+  h += `<h3>Waiting</h3><div class="chips">${waiting.length ? waiting.map(t => {
+      const note = t.sib ? "stuck" : t.wait?.kind === "join" ? "join" : t.wait ? `${t.wait.dev}, ${t.wait.left}` : "";
+      return `<span class="chip" data-tid="${t.id}" style="--c:${t.p.color}">${t.id} <small>${note}</small></span>`;
+    }).join("") : `<span class="empty">nobody</span>`}</div>`;
+  if (cfg.seven){
+    const onDisk = procs.filter(p => p.swapped);
+    h += `<h3>Swapped out to disk</h3><div class="chips">${onDisk.length ? onDisk.map(pchip).join("") : `<span class="empty">none</span>`}</div>
+          <div class="mem">In memory: ${resident()} of ${cfg.mem} process slots</div>`;
+  }
+  h += `<h3>Completed</h3><div class="chips">${done.length ? done.map(r => `<span class="chip" data-done="${r.pid}" style="--c:${r.color}">${r.name} <small>${r.how === "killed" ? "killed" : "exit " + r.status}</small></span>`).join("") : `<span class="empty">none yet</span>`}</div>`;
+  $("#side").innerHTML = h;
+}
+
+function procState(p){
+  const s = p.threads.map(t => t.state);
+  if (s.every(x => x === "exit")) return "Terminated";
+  if (s.includes("running")) return "Running";
+  if (s.includes("ready")) return "Ready";
+  if (s.includes("readySusp")) return "Ready, suspended";
+  if (s.includes("blocked")) return "Blocked";
+  if (s.includes("blockedSusp")) return "Blocked, suspended";
+  return "New";
+}
+
+function nextText(t){
+  const p = t.p, ins = p.prog.code[t.pc];
+  switch (t.state){
+    case "new": return p.load.stage === "done" ? "Loaded, waiting to be admitted" : "Program is being loaded";
+    case "exit": return "Exited";
+    case "running": return `Next: ${esc(ins.text)}`;
+    case "ready": return `Resumes at ${esc(ins.text)}; position ${readyQ.indexOf(t)+1} in queue`;
+    case "readySusp": return `Resumes at ${esc(ins.text)} after swap-in`;
+    default:
+      if (t.sib){ const b = blocker(p); return `Stuck: ${b ? b.id : "a sibling"}'s I/O blocks the whole process`; }
+      if (t.wait?.kind === "join") return "In join(): waiting for other threads";
+      return t.wait ? `In ${t.wait.name}: ${t.wait.dev}, ${t.wait.left} tick${t.wait.left>1?"s":""} left` : "";
+  }
+}
+
+function codeListing(p){
+  const L = p.load, loading = L.stage !== "done" && p.threads.some(t => t.state === "new");
+  const loaded = loading ? L.loaded : p.prog.code.length;
+  let h = `<div class="code" aria-label="Code segment">`;
+  for (const r of p.prog.rows){
+    if (r.lbl){ h += `<div class="row lbl"><span></span><span>${r.lbl}:</span><span></span><span></span></div>`; continue; }
+    const inMem = r.idx < loaded;
+    const justLoaded = loading && L.at === tick && r.idx >= L.from && r.idx < L.loaded;
+    const exec = p.threads.some(t => t.lastTick === tick && t.last === r.idx);
+    const pcs = loading ? "" : p.threads.filter(t => t.state !== "exit" && t.pc === r.idx)
+      .map(t => `<span class="pcm${t.state==="running"?" run":""}" title="${t.id}'s program counter">${t.id}</span>`).join("");
+    h += `<div class="row${inMem?"":" dim"}${justLoaded?" load":""}${exec?" exec":""}">
+      <span class="addr">${hex(r.addr)}</span><span class="asm">${esc(r.text)}</span>
+      <span class="cm">${inMem ? esc(r.cm) : "on disk"}</span><span>${pcs}</span></div>`;
+  }
+  return h + `</div>`;
+}
+
+function stdoutBox(lines){
+  return `<div class="stdout"><span class="pr">stdout</span>\n${lines.length ? lines.map(esc).join("\n") : `<span class="pr">(nothing printed yet)</span>`}</div>`;
+}
+
+function recordCard(r){
+  const tt = r.finished - r.created;
+  const parts = [["running","--run","running"],["ready","--ready","ready"],["blocked","--blk","blocked"],["new","--new","loading"],["susp","--exit","swapped"]];
+  const bar = parts.filter(([k]) => r.acct[k]).map(([k,c]) => `<span style="flex:${r.acct[k]};background:var(${c})" title="${k}: ${r.acct[k]}"></span>`).join("");
+  const leg = parts.filter(([k]) => r.acct[k]).map(([k,c,l]) => `<span><i style="background:var(${c})"></i>${l} ${r.acct[k]}</span>`).join("");
+  return `<div class="donecard" style="--pc:${r.color}">
+    <h3 style="color:${r.color}">${r.how === "killed" ? "Killed" : "Completed execution"}</h3>
+    <p>${code(r.prog.file)} (PID ${r.pid}) ${r.how === "killed" ? "was terminated by a signal" : "returned"} exit status <b>${r.status}</b>. The parent collects this number with wait().</p>
+    <div class="tbar">${bar}</div>
+    <div class="tleg">${leg}</div>
+    <div class="stats">
+      <div><b>${tt}</b>ticks turnaround</div>
+      <div><b>${r.instr}</b>instructions run</div>
+      <div><b>${r.switches}</b>times dispatched</div>
+      <div><b>${r.nthreads}</b>thread${r.nthreads>1?"s":""}</div>
+    </div>
+  </div>`;
+}
+
+function procTabs(){
+  const live = procs.map(p => {
+    const st = procState(p);
+    const key = {"New":"new","Ready":"ready","Running":"running","Blocked":"blocked","Terminated":"exit","Ready, suspended":"readySusp","Blocked, suspended":"blockedSusp"}[st];
+    return `<button class="ptab${p.pid===selPid?" on":""}" data-ptab="${p.pid}" style="--c:${p.color}" aria-pressed="${p.pid===selPid}">
+      <span class="pn">${p.name}</span><span class="pf">${esc(p.prog.file)}</span><span class="pill" style="--sc:var(${STCOL[key]})">${st}</span></button>`;
+  });
+  const gone = done.filter(r => !procs.some(p => p.pid === r.pid)).map(r =>
+    `<button class="ptab gone${r.pid===selPid?" on":""}" data-ptab="${r.pid}" style="--c:${r.color}" aria-pressed="${r.pid===selPid}">
+      <span class="pn">${r.name}</span><span class="pf">${esc(r.prog.file)}</span><span class="pill" style="--sc:var(--exit)">${r.how === "killed" ? "Killed" : "Completed"}</span></button>`);
+  const all = live.concat(gone);
+  return `<div class="ptabs" role="toolbar" aria-label="Processes">${all.length ? all.join("") : `<span class="empty">No processes. Create one with the button above.</span>`}</div>`;
+}
+
+function renderInspector(){
+  const box = $("#inspector");
+  renderInspectorBody(box);
+  box.insertAdjacentHTML("afterbegin", procTabs());
+}
+
+function renderInspectorBody(box){
+  const p = procs.find(x => x.pid === selPid);
+  const rec = p ? p.record : done.find(r => r.pid === selPid);
+  if (!p && !rec){ box.innerHTML = `<h2>Inside a process</h2><p class="none">Pick a process above, or click any token in the diagram, to watch its program load, run and finish.</p>`; return; }
+  if (!p){
+    box.innerHTML = `<div class="phead"><h2 style="color:${rec.color}">Process ${rec.name}</h2><span class="pid">PID ${rec.pid}</span></div>
+      <p class="pstate">Gone from the process table. Only this summary remains.</p>${recordCard(rec)}${stdoutBox(rec.stdout)}`;
+    return;
+  }
+  const t = p.threads.find(x => x.id === selTid) || p.threads[0];
+  const fin = !!p.record;
+  const st = procState(p);
+  const loc = p.swapped ? "image swapped out to disk" : fin ? "resources released" : st === "New" ? "loading" : "in memory";
+  let h = `<div class="phead"><h2 style="color:${p.color}">Process ${p.name}</h2><span class="pid">PID ${p.pid}  ${esc(p.prog.file)}</span></div>
+    <p class="pstate">${st}, ${loc}. ${p.threads.length} thread${p.threads.length>1?"s":""}.</p>
+    ${fin ? recordCard(p.record) : ""}
+    <div class="aspace" style="--pc:${p.color}">
+      <div>
+        <div class="shared">
+          <div class="shead">Code segment, shared by all threads</div>
+          ${codeListing(p)}
+          <div class="mini">
+            <div class="seg">Global data<small style="font-family:var(--mono);white-space:pre-line">total = ${p.data.total}\ncount = ${p.data.count}</small></div>
+            <div class="seg">Heap<small>malloc() and new</small></div>
+            <div class="seg">Open files<small>0 stdin, 1 stdout, 2 stderr</small></div>
+          </div>
+          ${stdoutBox(p.stdout)}
+        </div>
+      </div>
+      <div>
+        <div class="tcbs">`;
+  for (const th of p.threads){
+    const R = th.regs;
+    h += `<button class="tcb${th===t?" sel":""}" data-sel="${th.id}">
+        <div class="tt"><b>${th.id}</b><span class="pill" style="--sc:var(${STCOL[th.state]})">${ST[th.state].label}</span></div>
+        <dl><dt>PC</dt><dd>${th.state==="exit"?"-":hex(p.prog.code[th.pc]?.addr ?? 0)}</dd>
+            <dt>rax</dt><dd>${R.rax}</dd><dt>rbx</dt><dd>${R.rbx}</dd><dt>rcx</dt><dd>${R.rcx}</dd><dt>rdi</dt><dd>${R.rdi}</dd>
+            <dt>SP</dt><dd>${hex(th.sp)}</dd></dl>
+        <p class="nx">${nextText(th)}</p>
+      </button>`;
+  }
+  const canAdd = !fin && alive() < MAX_ALIVE && p.threads.length < 5;
+  h += `</div><p class="cap">Private to each thread: its own PC, registers and stack, saved in its TCB at every context switch. Threads of one process can sit at different lines of the same code.</p>
+      </div>
+    </div>
+    <div class="acts">
+      <button data-act="add" ${canAdd?"":"disabled"}>Add thread to ${p.name}</button>
+      ${cfg.seven ? (p.swapped
+        ? `<button data-act="in" ${fin?"disabled":""}>Swap ${p.name} in</button>`
+        : `<button data-act="out" ${fin||p.threads.every(x=>x.state==="new")?"disabled":""}>Swap ${p.name} out</button>`) : ""}
+      <button data-act="kill" ${fin?"disabled":""}>Kill ${p.name}</button>
+    </div>`;
+  box.innerHTML = h;
+}
+
+// ---------- UI wiring ----------
+function play(on){
+  clearInterval(timer); timer = null;
+  if (on) timer = setInterval(step, cfg.speed);
+  $("#btnPlay").textContent = timer ? "Pause" : "Play";
+}
+function reset(){
+  procs = []; threads = []; readyQ = []; done = []; tick = 0; seq = 0; pidSeq = 100; letterIdx = 0; selPid = null; selTid = null;
+  cores = Array(cfg.cores).fill(null);
+  tokens.forEach(g => g.remove()); tokens.clear();
+  $("#log").innerHTML = "";
+  newProcess(1, "sum"); newProcess(2, "counter"); newProcess(1, "readfile");
+  selPid = procs[0].pid; selTid = procs[0].threads[0].id;
+  render();
+}
+
+$("#btnPlay").onclick = () => play(!timer);
+$("#btnStep").onclick = () => { play(false); step(); };
+$("#speed").onchange = e => {
+  cfg.speed = +e.target.value;
+  document.documentElement.style.setProperty("--tdur", Math.min(.55, cfg.speed/1000*0.6) + "s");
+  if (timer) play(true);
+};
+$("#btnNew").onclick = () => { newProcess(+$("#nThreads").value); render(); };
+$("#quantum").onchange = e => { cfg.quantum = +e.target.value; log(`Time slice set to ${cfg.quantum} instructions. Shorter slices feel more responsive but spend more time on context switches.`); render(); };
+$("#cores").onchange = e => {
+  const n = +e.target.value;
+  while (cores.length > n){ const t = cores.pop(); if (t){ t.core = cores.length; move(t, "ready", "timeout"); } }
+  while (cores.length < n) cores.push(null);
+  cfg.cores = n;
+  log(`Now ${n} CPU core${n>1?"s":""}. ${n>1?"Several threads execute instructions in the same tick: true parallelism.":"Only one instruction executes per tick; threads take turns."}`);
+  render();
+};
+$("#model").onchange = e => {
+  cfg.model = e.target.value;
+  reset();
+  log(cfg.model === "N:1"
+    ? `Switched to user-level threads (many-to-one). A thread library inside each process juggles its threads and the kernel sees only one. Watch process B: when a worker blocks in recv(), its siblings get stuck, and even with 2+ cores they never execute in the same tick.`
+    : `Switched to kernel threads (one-to-one), as in Linux and Windows. The kernel schedules every thread on its own, so one thread blocking does not stop its siblings.`, cfg.model === "N:1");
+  render();
+};
+$("#seven").onchange = e => {
+  cfg.seven = e.target.checked;
+  if (!cfg.seven){ procs.filter(p => p.swapped).forEach(swapIn); log("Swapping hidden: back to the 5-state model. Every process is in memory."); }
+  else log(`Swapping on: memory now holds at most ${cfg.mem} processes. Extra ones wait on disk in the suspended states. Create a few more processes to see it.`);
+  explain(cfg.seven ? "readySusp" : explainKey && ST[explainKey]?.seven ? null : explainKey);
+  render();
+};
+$("#btnReset").onclick = () => { play(false); reset(); };
+
+$("#inspector").addEventListener("click", e => {
+  const pt = e.target.closest("[data-ptab]");
+  if (pt){
+    const pid = +pt.dataset.ptab, p = procs.find(x => x.pid === pid);
+    selPid = pid; selTid = p ? (p.threads.find(t => t.state !== "exit") || p.threads[0])?.id ?? null : null;
+    render(); document.querySelector(`[data-ptab="${pid}"]`)?.focus(); return;
+  }
+  const s = e.target.closest("[data-sel]");
+  if (s){ selectThread(s.dataset.sel); return; }
+  const a = e.target.closest("[data-act]");
+  if (!a) return;
+  const p = procs.find(x => x.pid === selPid); if (!p) return;
+  switch (a.dataset.act){
+    case "add": { const nt = addThread(p, false); selTid = nt.id; break; }
+    case "out": swapOut(p, true); break;
+    case "in":
+      if (resident() >= cfg.mem){ log(`Memory is full (${cfg.mem} processes). Swap another process out first.`, true); break; }
+      swapIn(p); break;
+    case "kill": kill(p); break;
+  }
+  render();
+});
+document.addEventListener("click", e => {
+  const c = e.target.closest(".chip");
+  if (!c || e.target.closest("#inspector .tcb")) return;
+  if (c.dataset.tid) selectThread(c.dataset.tid);
+  else if (c.dataset.done){ selPid = +c.dataset.done; selTid = null; render(); }
+  else if (c.dataset.pid){ const p = procs.find(x => x.pid === +c.dataset.pid); if (p){ selPid = p.pid; selTid = p.threads[0]?.id; render(); } }
+});
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input,select,textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const onButton = e.target.matches("button, .tok");
+  if (e.key === " " && !onButton){ e.preventDefault(); play(!timer); }
+  else if (e.key === "s" || e.key === "S"){ play(false); step(); }
+  else if (e.key === "n" || e.key === "N"){ newProcess(+$("#nThreads").value); render(); }
+});
+
+buildSVG();
+explain(null);
+reset();
+if (!reduceMotion) setTimeout(() => play(true), 700);
+})();
+</script>
+</body>
+</html>
