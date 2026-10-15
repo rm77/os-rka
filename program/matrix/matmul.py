@@ -27,7 +27,7 @@ import time
 import curses
 import multiprocessing
 
-JOBS = 20
+JOBS = 16
 
 
 def read_matrix(filename):
