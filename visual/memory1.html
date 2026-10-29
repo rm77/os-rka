@@ -1,0 +1,812 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Memory Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: control bar, then memory view beside the OS's bookkeeping tables, then translation, comparison and log.
+   Companion to OS-v2: same palette, faces and process colours. */
+:root{
+  --bg:#E7ECF0; --panel:#F9FBFC; --ink:#15202B; --muted:#586775; --line:#B6C2CC; --soft:#DCE3E9;
+  --accent:#10857A; --accentfill:#E1F3F0; --warn:#B4361E; --warnfill:#FBE7E2; --hold:#7449C0; --holdfill:#EEE6FA;
+  --p0:#D1495B; --p1:#2E7FD6; --p2:#2A9D5C; --p3:#C2560C; --p4:#8E44AD; --p5:#0E8AA0; --p6:#B8860B; --p7:#C0397A;
+  --sans:"Atkinson Hyperlegible","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10171E; --panel:#18222C; --ink:#E4EAF0; --muted:#98A6B3; --line:#344351; --soft:#223040;
+    --accent:#3CC4B4; --accentfill:#0F2D2A; --warn:#F07A5E; --warnfill:#3A1C15; --hold:#AC8CEB; --holdfill:#261C39;
+    --p0:#E86A7A; --p1:#5DA2EC; --p2:#4CC383; --p3:#E57A35; --p4:#B576D3; --p5:#36B6CC; --p6:#D9AA2E; --p7:#E063A0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10171E; --panel:#18222C; --ink:#E4EAF0; --muted:#98A6B3; --line:#344351; --soft:#223040;
+  --accent:#3CC4B4; --accentfill:#0F2D2A; --warn:#F07A5E; --warnfill:#3A1C15; --hold:#AC8CEB; --holdfill:#261C39;
+  --p0:#E86A7A; --p1:#5DA2EC; --p2:#4CC383; --p3:#E57A35; --p4:#B576D3; --p5:#36B6CC; --p6:#D9AA2E; --p7:#E063A0;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:1320px;margin:0 auto;padding-block:20px 40px;display:grid;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--muted);max-width:68ch}
+.spec{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:right}
+.spec b{color:var(--ink);font-weight:600}
+h2{font-size:17px;margin:0;text-wrap:balance}
+h3{font-size:13px;margin:0 0 6px;color:var(--muted);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.card{background:var(--panel);border:1px solid var(--soft);border-radius:14px;padding:14px;min-width:0}
+code,.mono{font-family:var(--mono);font-size:.86em}
+
+/* model tabs */
+.models{display:flex;flex-wrap:wrap;gap:6px}
+.models button{font:inherit;font-size:15px;font-weight:700;color:var(--muted);background:var(--panel);border:2px solid var(--soft);border-radius:10px;padding:8px 14px;cursor:pointer}
+.models button small{display:block;font-weight:400;font-size:12px}
+.models button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
+.models button:hover{border-color:var(--muted)}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px}
+.group{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--soft);border-radius:10px;padding:8px 10px}
+.gl{font-size:13px;color:var(--muted)}
+button,select,input{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 11px}
+button{cursor:pointer}
+button:hover:not(:disabled),select:hover{border-color:var(--muted)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--ink);color:var(--panel);border-color:var(--ink);font-weight:700}
+input{font-family:var(--mono);width:9ch}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* processes */
+.plist{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pchip{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--c);border-radius:999px;padding:2px 4px 2px 10px;background:var(--panel);font-size:14px}
+.pchip b{color:var(--c)}
+.pchip small{color:var(--muted);font-family:var(--mono);font-size:12px}
+.pchip .tag{font-size:11.5px;font-weight:700;border-radius:999px;padding:0 7px}
+.tag.wait{background:var(--holdfill);color:var(--hold)}
+.tag.rej{background:var(--warnfill);color:var(--warn)}
+.pchip button{padding:1px 8px;font-size:12.5px;border-radius:999px}
+.pchip.gone{opacity:.55;border-style:dashed}
+
+.top{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
+.mid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:980px){.top,.mid{grid-template-columns:minmax(0,1fr)}}
+
+/* memory bar */
+.vhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px;margin-bottom:12px}
+.vhead p{margin:0;color:var(--muted);font-size:14px}
+.barwrap{overflow-x:auto}
+.bar{position:relative;height:92px;min-width:520px;border-radius:8px;border:2px solid var(--line);overflow:hidden;
+  background:repeating-linear-gradient(135deg,var(--bg) 0 7px,var(--soft) 7px 9px)}
+.blk{position:absolute;top:0;bottom:0;border-right:2px solid var(--panel);overflow:hidden;cursor:default}
+.blk.os{background:var(--ink);color:var(--panel);display:flex;flex-direction:column;justify-content:center;padding:0 8px;font-weight:700;font-size:13px}
+.blk.os small{font-weight:400;opacity:.75}
+.blk.p{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 30%,var(--panel)) 0 4px,var(--panel) 4px 8px)}
+.blk.p .used{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--c) 18%,var(--panel));box-shadow:inset 0 5px 0 var(--c)}
+.blk.p .lab{position:relative;padding:10px 7px 0;white-space:nowrap}
+.blk.p .lab b{color:var(--c);font-size:16px}
+.blk.p .lab span{display:block;font-size:12px;color:var(--muted)}
+.blk.part{border:2px dashed var(--line);border-left:0;background:transparent;display:flex;align-items:flex-end;padding:0 6px 6px;font-size:12px;color:var(--muted)}
+.hole{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.hole span{background:var(--panel);border-radius:5px;padding:1px 6px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.marker{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--warn);box-shadow:0 0 0 2px var(--panel)}
+.marker::after{content:attr(data-l);position:absolute;top:2px;left:6px;font:600 11px var(--mono);background:var(--warn);color:var(--panel);padding:1px 5px;border-radius:4px;white-space:nowrap}
+.marker.left::after{left:auto;right:6px}
+.ptr{position:absolute;bottom:0;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:11px solid var(--hold);transform:translateX(-7px)}
+.axis{position:relative;height:18px;min-width:520px;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+.axis span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.axis span:first-child{transform:none}
+.axis span:last-child{transform:translateX(-100%)}
+
+/* frames */
+.frames{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.fr{border:1.5px solid var(--line);border-radius:6px;padding:4px 6px;min-height:52px;font-size:12.5px;background:var(--panel);position:relative}
+.fr .fn{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.fr b{display:block;font-size:15px;color:var(--c)}
+.fr.p{border-color:var(--c);background:color-mix(in srgb,var(--c) 16%,var(--panel))}
+.fr.os{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.fr.os .fn{color:var(--panel);opacity:.7}
+.fr.free{background:repeating-linear-gradient(135deg,var(--bg) 0 7px,var(--soft) 7px 9px)}
+.fr.hit{outline:3px solid var(--warn);outline-offset:1px}
+.fr .w{position:absolute;right:5px;bottom:4px;font-size:11px;color:var(--muted)}
+@media (max-width:560px){.frames{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* buddy tree */
+.tree{margin-top:12px;overflow-x:auto}
+.tree svg{display:block;width:100%;min-width:520px;height:auto}
+.tree line{stroke:var(--line);stroke-width:1.5}
+.tree text{font:11px var(--mono);fill:var(--muted)}
+
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.stat{background:var(--bg);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--muted)}
+.stat b{display:block;font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
+.stat.bad b{color:var(--warn)}
+.note{margin:12px 0 0;padding:10px 12px;background:var(--bg);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;font-size:15px;max-width:none}
+.note.warn{border-left-color:var(--warn)}
+
+/* tables */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--soft);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:700}
+td.m{font-family:var(--mono);font-size:12.5px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c);margin-right:6px;vertical-align:-1px}
+.side{display:grid;gap:16px}
+.ptables{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.ptab{border:2px solid var(--c);border-radius:9px;padding:6px 8px}
+.ptab h4{margin:0 0 4px;font-size:14px;color:var(--c)}
+.ptab h4 small{color:var(--muted);font-weight:400}
+.empty{color:var(--muted);font-style:italic;font-size:14px}
+.blist{display:flex;flex-wrap:wrap;gap:4px}
+.blist span{font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+
+/* translation */
+.tform{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.presets button{font-size:12.5px;padding:3px 9px}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:6px;counter-reset:s}
+.steps li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;align-items:start;font-size:14.5px}
+.steps li::before{counter-increment:s;content:counter(s);font:700 12px var(--sans);width:22px;height:22px;border-radius:50%;background:var(--soft);display:grid;place-items:center;margin-top:1px}
+.steps li.res::before{background:var(--accent);color:var(--panel)}
+.steps li.fault::before{background:var(--warn);color:var(--panel)}
+.bits{font-family:var(--mono);font-size:13.5px;display:inline-flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:3px 0}
+.bits span{padding:1px 6px}
+.bits .hi{background:color-mix(in srgb,var(--c,var(--accent)) 22%,var(--panel));font-weight:600}
+.bits .lo{background:var(--bg)}
+.result{font-weight:700}
+.fault .result{color:var(--warn)}
+
+/* log */
+#log{list-style:none;margin:0;padding:0;max-height:320px;overflow-y:auto;font-size:14px}
+#log li{padding:6px 0;border-bottom:1px solid var(--soft);display:grid;grid-template-columns:34px minmax(0,1fr);gap:6px}
+#log li .t{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+#log li.warn{color:var(--warn)}
+.cmp td.best{font-weight:700;color:var(--accent)}
+.cmp td.worst{color:var(--warn)}
+.cmp tr.cur td{background:var(--bg)}
+.foot{font-size:13px;color:var(--muted);margin:8px 0 0}
+@media (prefers-reduced-motion:no-preference){.blk,.fr{transition:left .45s ease,width .45s ease,background .3s}}
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Memory Lab</h1>
+      <p>Load and free programs, then switch the memory model. The same history of loads and frees is replayed under each model, so you can see what each one wastes and what each one refuses to load.</p>
+    </div>
+    <div class="spec">Main memory <b>128 KB</b> · kernel <b>16 KB</b><br>Page size <b>4 KB</b> · 32 frames</div>
+  </header>
+
+  <div class="models" role="group" aria-label="Memory model" id="models"></div>
+
+  <div class="controls">
+    <div class="group">
+      <span class="gl">Load</span>
+      <select id="prog" aria-label="Program to load"></select>
+      <button class="primary" id="btnLoad">Load program</button>
+    </div>
+    <div class="group" id="optFixed">
+      <span class="gl">Partitions</span>
+      <select id="fixedKind" aria-label="Partition sizes">
+        <option value="equal">Equal: 4 × 28 KB</option>
+        <option value="unequal">Unequal: 8, 8, 16, 32, 48 KB</option>
+      </select>
+    </div>
+    <div class="group" id="optDyn">
+      <span class="gl">Placement</span>
+      <select id="fit" aria-label="Placement algorithm">
+        <option value="first">First fit</option>
+        <option value="best">Best fit</option>
+        <option value="next">Next fit</option>
+        <option value="worst">Worst fit</option>
+      </select>
+    </div>
+    <div class="group">
+      <button id="btnCompact">Compact memory</button>
+      <button id="btnSample">Sample workload</button>
+      <button id="btnReset">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="vhead"><h2>Processes</h2><p>Free a process to return its memory. Waiting processes retry after every free.</p></div>
+    <div class="plist" id="plist"></div>
+  </div>
+
+  <div class="top">
+    <section class="card" aria-labelledby="memTitle">
+      <div class="vhead"><h2 id="memTitle">Main memory</h2><p id="memSub"></p></div>
+      <div id="memView"></div>
+      <div class="stats" id="stats"></div>
+      <p class="note" id="note" aria-live="polite"></p>
+    </section>
+    <aside class="card side" id="side" aria-label="Operating system bookkeeping"></aside>
+  </div>
+
+  <div class="mid">
+    <section class="card" aria-labelledby="trTitle">
+      <h2 id="trTitle">Address translation</h2>
+      <div class="tform" id="tform"></div>
+      <div class="presets" id="presets"></div>
+      <ol class="steps" id="steps"></ol>
+    </section>
+    <section class="card" aria-labelledby="cmpTitle">
+      <h2 id="cmpTitle">Same workload, every model</h2>
+      <p class="foot" style="margin:4px 0 10px">The current history of loads, frees and compactions, replayed under each model.</p>
+      <div class="tw"><table class="cmp" id="cmp"></table></div>
+      <p class="foot">Internal waste: memory given to a process beyond what it needs. Largest free block: the biggest request that could still be placed in one piece.</p>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="vhead"><h2>What happened</h2><p>Newest first, for the current model</p></div>
+    <ol id="log" reversed></ol>
+  </section>
+</main>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+const MEM = 128, OSK = 16, PAGE = 4, FRAMES = MEM / PAGE;
+
+const PROGS = {
+  sum:      {file:"./sum",      kb:24, seg:{code:8,  data:8,  stack:8}},
+  readfile: {file:"./readfile", kb:32, seg:{code:12, data:12, stack:8}},
+  counter:  {file:"./counter",  kb:40, seg:{code:16, data:16, stack:8}},
+  bigdata:  {file:"./bigdata",  kb:48, seg:{code:8,  data:32, stack:8}},
+  buggy:    {file:"./buggy",    kb:16, seg:{code:4,  data:4,  stack:8}}
+};
+const SEGS = ["code","data","stack"];
+const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const MODELS = {
+  fixed:   {name:"Fixed partitions", sub:"set at boot"},
+  dynamic: {name:"Dynamic partitions", sub:"exact size, contiguous"},
+  buddy:   {name:"Buddy system", sub:"powers of two"},
+  paging:  {name:"Paging", sub:"4 KB frames"},
+  seg:     {name:"Segmentation", sub:"code, data, stack"}
+};
+const FITNAME = {first:"First fit", best:"Best fit", next:"Next fit", worst:"Worst fit"};
+const FIXED = {equal:[28,28,28,28], unequal:[8,8,16,32,48]};
+
+const ui = {model:"dynamic", fit:"first", fixedKind:"equal", trProc:null, trAddr:"0x1000", trSeg:"data", trOff:"0x0010"};
+let history = [];
+
+const kb = n => `${n} KB`;
+const hex = (b, w) => "0x" + b.toString(16).toUpperCase().padStart(w, "0");
+const hx5 = kbv => hex(kbv*1024, 5);
+const bin = (n, w) => n.toString(2).padStart(w, "0");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pcol = i => `var(--p${i % 8})`;
+const nameChip = p => `<b style="color:${p.color}">${p.name}</b>`;
+
+// ===================== allocators =====================
+function holesOf(regs){
+  const r = regs.slice().sort((a,b) => a.start - b.start), hs = [];
+  let cur = OSK;
+  for (const x of r){ if (x.start > cur) hs.push({start:cur, size:x.start-cur}); cur = Math.max(cur, x.start + x.size); }
+  if (cur < MEM) hs.push({start:cur, size:MEM-cur});
+  return hs;
+}
+function pickHole(hs, need, fit, ptr){
+  const ok = hs.filter(h => h.size >= need);
+  if (!ok.length) return null;
+  if (fit === "best") return ok.reduce((a,b) => b.size < a.size ? b : a);
+  if (fit === "worst") return ok.reduce((a,b) => b.size > a.size ? b : a);
+  if (fit === "next"){
+    const after = ok.filter(h => h.start + h.size > ptr);
+    return after.length ? after[0] : ok[0];
+  }
+  return ok[0];
+}
+
+const ALLOC = {
+  fixed: {
+    init(st, o){ let s = OSK; st.parts = FIXED[o.fixedKind].map(size => { const p = {start:s, size, owner:null}; s += size; return p; }); },
+    alloc(st, p){
+      const need = p.prog.kb, max = Math.max(...st.parts.map(x => x.size));
+      if (need > max) return {ok:false, never:true, msg:`${nameChip(p)} needs ${kb(need)}, but the largest partition is ${kb(max)}. It can never load here without overlays.`};
+      const free = st.parts.filter(x => !x.owner && x.size >= need);
+      if (!free.length) return {ok:false, msg:`${nameChip(p)} needs ${kb(need)}. Every partition big enough is in use, so it waits.`};
+      const part = free.reduce((a,b) => b.size < a.size ? b : a);
+      part.owner = p; p.alloc = {start:part.start, size:part.size};
+      const w = part.size - need;
+      return {ok:true, msg:`${nameChip(p)} (${kb(need)}) took the smallest free partition that fits: ${kb(part.size)} at ${hx5(part.start)}. ${w ? `<b>${kb(w)} of internal fragmentation</b>: the rest of the partition is wasted.` : "It fits exactly."}`};
+    },
+    free(st, p){ const part = st.parts.find(x => x.owner === p); if (part) part.owner = null; },
+    compact(){ return "Fixed partitions never move, so there is nothing to compact. The waste here is inside partitions."; },
+    sizes(st){
+      const loaded = st.parts.filter(x => x.owner);
+      const freeParts = st.parts.filter(x => !x.owner);
+      return {alloc:loaded.reduce((a,x) => a+x.size, 0), free:freeParts.reduce((a,x) => a+x.size, 0), largest:Math.max(0, ...freeParts.map(x => x.size))};
+    }
+  },
+  dynamic: {
+    init(st){ st.regs = []; st.ptr = OSK; },
+    alloc(st, p, o){
+      const need = p.prog.kb, hs = holesOf(st.regs), free = hs.reduce((a,h) => a+h.size, 0);
+      const h = pickHole(hs, need, o.fit, st.ptr);
+      if (!h){
+        const largest = Math.max(0, ...hs.map(x => x.size));
+        return {ok:false, msg: free >= need
+          ? `${nameChip(p)} needs ${kb(need)}. <b>${kb(free)} is free</b>, but split into ${hs.length} holes and the largest is ${kb(largest)}. This is <b>external fragmentation</b>. Compacting memory would merge the holes.`
+          : `${nameChip(p)} needs ${kb(need)} but only ${kb(free)} is free. It waits.`};
+      }
+      st.regs.push({start:h.start, size:need, p}); p.alloc = {start:h.start, size:need};
+      st.ptr = h.start + need;
+      const left = h.size - need;
+      return {ok:true, msg:`${FITNAME[o.fit]} placed ${nameChip(p)} (${kb(need)}) in the ${kb(h.size)} hole at ${hx5(h.start)}. ${left ? `A ${kb(left)} hole is left over.` : "It fits exactly."} Holes before: ${hs.map(x => x.size).join(", ")} KB.`};
+    },
+    free(st, p){ st.regs = st.regs.filter(r => r.p !== p); },
+    compact(st){
+      const r = st.regs.slice().sort((a,b) => a.start - b.start);
+      let cur = OSK, moved = 0;
+      for (const x of r){ if (x.start !== cur){ moved += x.size; x.start = cur; x.p.alloc.start = cur; } cur += x.size; }
+      st.ptr = cur;
+      return moved ? `<b>Compaction</b> copied ${kb(moved)} of memory to slide processes down. All free space is now one ${kb(MEM-cur)} hole. Only base registers changed.` : "Memory is already compact.";
+    },
+    sizes(st){
+      const alloc = st.regs.reduce((a,x) => a+x.size, 0), hs = holesOf(st.regs);
+      return {alloc, free:MEM-OSK-alloc, largest:Math.max(0, ...hs.map(h => h.size))};
+    }
+  },
+  buddy: {
+    init(st){
+      st.root = {start:0, size:MEM, state:"free", parent:null};
+      const os = this.take(st.root, OSK); os.state = "used"; os.os = true;
+    },
+    leaves(n, out=[]){ if (n.state === "split"){ this.leaves(n.kids[0], out); this.leaves(n.kids[1], out); } else out.push(n); return out; },
+    take(node, bs){
+      while (node.size > bs){
+        node.state = "split";
+        node.kids = [{start:node.start, size:node.size/2, state:"free", parent:node}, {start:node.start+node.size/2, size:node.size/2, state:"free", parent:node}];
+        node = node.kids[0];
+      }
+      return node;
+    },
+    alloc(st, p){
+      const need = p.prog.kb; let bs = 4; while (bs < need) bs *= 2;
+      const free = this.leaves(st.root).filter(n => n.state === "free" && n.size >= bs);
+      if (!free.length){
+        const all = this.leaves(st.root).filter(n => n.state === "free"), tot = all.reduce((a,n) => a+n.size, 0);
+        return {ok:false, msg:`${nameChip(p)} needs ${kb(need)}, rounded up to a ${kb(bs)} block. ${tot >= bs ? `${kb(tot)} is free, but no single free block is ${kb(bs)} or larger.` : `Only ${kb(tot)} is free.`} It waits.`};
+      }
+      const best = free.reduce((a,b) => b.size < a.size || (b.size === a.size && b.start < a.start) ? b : a);
+      const splits = Math.log2(best.size / bs);
+      const n = this.take(best, bs); n.state = "used"; n.p = p;
+      p.alloc = {start:n.start, size:bs};
+      return {ok:true, msg:`${nameChip(p)} needs ${kb(need)}, rounded up to ${kb(bs)}. ${splits ? `A free ${kb(best.size)} block was halved ${splits} time${splits>1?"s":""}.` : `A free ${kb(bs)} block was already available.`} It got ${hx5(n.start)}. ${bs - need ? `<b>${kb(bs-need)} internal waste</b>.` : "No waste."}`};
+    },
+    free(st, p){
+      let n = this.leaves(st.root).find(x => x.p === p);
+      if (!n) return "";
+      n.state = "free"; delete n.p; let merges = 0;
+      while (n.parent && n.parent.kids.every(k => k.state === "free")){ n = n.parent; n.state = "free"; delete n.kids; merges++; }
+      return merges ? ` Its block merged with its free buddy ${merges} time${merges>1?"s":""}, back up to ${kb(n.size)}.` : " Its buddy is still in use, so no merge.";
+    },
+    compact(){ return "Buddy blocks sit at fixed power-of-two addresses, so they are not compacted. Freeing a block merges it with its buddy instead."; },
+    sizes(st){
+      const lv = this.leaves(st.root), used = lv.filter(n => n.state === "used" && !n.os), fr = lv.filter(n => n.state === "free");
+      return {alloc:used.reduce((a,n) => a+n.size, 0), free:fr.reduce((a,n) => a+n.size, 0), largest:Math.max(0, ...fr.map(n => n.size))};
+    }
+  },
+  paging: {
+    init(st){ st.frames = Array.from({length:FRAMES}, (_, i) => i < OSK/PAGE ? {os:true} : null); },
+    alloc(st, p){
+      const pages = Math.ceil(p.prog.kb / PAGE), free = [];
+      st.frames.forEach((f, i) => { if (!f) free.push(i); });
+      if (free.length < pages) return {ok:false, msg:`${nameChip(p)} needs ${pages} frames but only ${free.length} are free. It waits.`};
+      const use = free.slice(0, pages);
+      use.forEach((fi, pg) => st.frames[fi] = {p, page:pg});
+      p.alloc = {pt:use, size:pages*PAGE};
+      const scattered = use.some((f, i) => i && f !== use[i-1] + 1);
+      return {ok:true, msg:`${nameChip(p)} (${kb(p.prog.kb)}) is ${pages} pages. They went into frames ${use.join(", ")}${scattered ? ", which are <b>not contiguous</b>, and that is fine" : ""}. The page table records where each page is.`};
+    },
+    free(st, p){ st.frames = st.frames.map(f => f && f.p === p ? null : f); },
+    compact(){ return "Paging never needs compaction: any free frame can hold any page, so there is no external fragmentation."; },
+    sizes(st){
+      const used = st.frames.filter(f => f && !f.os).length, free = st.frames.filter(f => !f).length;
+      return {alloc:used*PAGE, free:free*PAGE, largest:free*PAGE};
+    }
+  },
+  seg: {
+    init(st){ st.regs = []; },
+    alloc(st, p){
+      const placed = [];
+      for (const s of SEGS){
+        const need = p.prog.seg[s], h = pickHole(holesOf(st.regs), need, "first", 0);
+        if (!h){
+          st.regs = st.regs.filter(r => !placed.includes(r));
+          const hs = holesOf(st.regs), free = hs.reduce((a,x) => a+x.size, 0);
+          return {ok:false, msg:`${nameChip(p)}'s ${s} segment needs ${kb(need)} in one piece. ${free >= need ? `${kb(free)} is free in total, but no hole is big enough: external fragmentation.` : `Only ${kb(free)} is free.`} It waits.`};
+        }
+        const r = {start:h.start, size:need, p, seg:s}; st.regs.push(r); placed.push(r);
+      }
+      p.alloc = {segs:Object.fromEntries(placed.map(r => [r.seg, r])), size:p.prog.kb};
+      return {ok:true, msg:`${nameChip(p)}'s three segments were placed separately (first fit): ${placed.map(r => `${r.seg} ${kb(r.size)} at ${hx5(r.start)}`).join(", ")}.`};
+    },
+    free(st, p){ st.regs = st.regs.filter(r => r.p !== p); },
+    compact(st){ return ALLOC.dynamic.compact.call(this, st).replace("processes", "segments"); },
+    sizes(st){ return ALLOC.dynamic.sizes(st); }
+  }
+};
+ALLOC.seg.compact = function(st){
+  const r = st.regs.slice().sort((a,b) => a.start - b.start);
+  let cur = OSK, moved = 0;
+  for (const x of r){ if (x.start !== cur){ moved += x.size; x.start = cur; } cur += x.size; }
+  return moved ? `<b>Compaction</b> copied ${kb(moved)} to slide segments down. Free space is now one ${kb(MEM-cur)} hole. Only the segment table bases changed.` : "Memory is already compact.";
+};
+
+// ===================== replay =====================
+function simulate(model, opt){
+  const A = ALLOC[model], st = {model, procs:[], log:[], note:"", noteWarn:false, tick:0};
+  A.init(st, opt);
+  const byName = {};
+  const tryLoad = (p, again) => {
+    const r = A.alloc(st, p, opt);
+    if (r.ok){ p.status = "loaded"; return r; }
+    p.status = r.never ? "rejected" : "waiting";
+    return r;
+  };
+  const retry = () => {
+    for (const p of st.procs.filter(x => x.status === "waiting")){
+      const r = A.alloc(st, p, opt);
+      if (r.ok){ p.status = "loaded"; st.log.push({t:st.tick, html:`Waiting process ${nameChip(p)} loaded. ${r.msg}`}); st.note = `Waiting process ${nameChip(p)} could load now. ${r.msg}`; st.noteWarn = false; }
+    }
+  };
+  for (const op of history){
+    st.tick++;
+    if (op.op === "load"){
+      const p = {name:op.name, color:pcol(op.ci), prog:PROGS[op.prog], progKey:op.prog, status:"", alloc:null};
+      st.procs.push(p); byName[p.name] = p;
+      const r = tryLoad(p);
+      st.log.push({t:st.tick, html:r.msg, warn:!r.ok}); st.note = r.msg; st.noteWarn = !r.ok;
+    } else if (op.op === "free"){
+      const p = byName[op.name]; if (!p) continue;
+      let extra = "";
+      if (p.status === "loaded"){
+        const s = p.alloc; extra = A.free(st, p) || "";
+        p.status = "freed"; p.alloc = null;
+        const msg = `${nameChip(p)} exited and its ${model === "paging" ? `${s.pt.length} frames were` : model === "seg" ? "segments were" : `${kb(s.size)} block at ${hx5(s.start)} was`} returned.${extra}`;
+        st.log.push({t:st.tick, html:msg}); st.note = msg; st.noteWarn = false;
+      } else {
+        p.status = "freed";
+        const msg = `${nameChip(p)} was cancelled before it ever got memory.`;
+        st.log.push({t:st.tick, html:msg}); st.note = msg; st.noteWarn = false;
+      }
+      retry();
+    } else if (op.op === "compact"){
+      const msg = A.compact(st, opt);
+      st.log.push({t:st.tick, html:msg}); st.note = msg; st.noteWarn = false;
+      retry();
+    }
+  }
+  const loaded = st.procs.filter(p => p.status === "loaded");
+  const prog = loaded.reduce((a,p) => a + p.prog.kb, 0);
+  const sz = A.sizes(st);
+  st.stats = {loaded:loaded.length, waiting:st.procs.filter(p => p.status === "waiting").length,
+              rejected:st.procs.filter(p => p.status === "rejected").length,
+              prog, alloc:sz.alloc, internal:sz.alloc - prog, free:sz.free, largest:sz.largest};
+  return st;
+}
+const opts = () => ({fit:ui.fit, fixedKind:ui.fixedKind});
+
+// ===================== rendering =====================
+function renderModels(){
+  $("#models").innerHTML = Object.entries(MODELS).map(([k,m]) =>
+    `<button type="button" data-m="${k}" aria-pressed="${ui.model === k}">${m.name}<small>${m.sub}</small></button>`).join("");
+  $("#optFixed").hidden = ui.model !== "fixed";
+  $("#optDyn").hidden = ui.model !== "dynamic";
+  $("#btnCompact").disabled = !(ui.model === "dynamic" || ui.model === "seg");
+}
+
+function renderProcs(st){
+  if (!st.procs.length){ $("#plist").innerHTML = `<span class="empty">No processes yet. Pick a program and press Load program.</span>`; return; }
+  $("#plist").innerHTML = st.procs.map(p => {
+    const tag = p.status === "waiting" ? `<span class="tag wait">waiting</span>` : p.status === "rejected" ? `<span class="tag rej">too big</span>` : p.status === "freed" ? `<span class="tag">exited</span>` : "";
+    const btn = p.status === "loaded" || p.status === "waiting" || p.status === "rejected" ? `<button type="button" data-free="${p.name}">${p.status === "loaded" ? "Exit" : "Cancel"}</button>` : "";
+    return `<span class="pchip${p.status === "freed" ? " gone" : ""}" style="--c:${p.color}"><b>${p.name}</b> ${esc(p.prog.file)} <small>${p.prog.kb} KB</small>${tag}${btn}</span>`;
+  }).join("");
+}
+
+function axisHTML(){
+  return `<div class="axis">${[0,16,32,48,64,80,96,112,128].map(k => `<span style="left:${k/MEM*100}%">${k} KB</span>`).join("")}</div>`;
+}
+const pct = k => (k / MEM * 100) + "%";
+
+function blockHTML(p, start, size, label, sub){
+  const usedPct = Math.min(100, (label.used / size) * 100);
+  return `<div class="blk p" style="--c:${p.color};left:${pct(start)};width:${pct(size)}" title="${p.name}: ${hx5(start)} to ${hx5(start+size)}">
+    <div class="used" style="width:${usedPct}%"></div>
+    <div class="lab"><b>${label.title}</b>${size >= 12 ? `<span>${sub}</span>` : ""}</div></div>`;
+}
+
+function markerHTML(physKB, label){
+  if (physKB == null) return "";
+  const left = physKB / MEM > .78;
+  return `<div class="marker${left ? " left" : ""}" style="left:calc(${pct(physKB)} - 1px)" data-l="${label}"></div>`;
+}
+
+function renderMemory(st, tr){
+  const m = st.model;
+  let html = "", sub = "";
+  const phys = tr && tr.phys != null ? tr.phys / 1024 : null, physLab = tr && tr.phys != null ? hex(tr.phys, 5) : "";
+  if (m === "paging"){
+    sub = "Each cell is a 4 KB frame. Any page can go in any free frame.";
+    html = `<div class="frames">${st.frames.map((f, i) => {
+      const hit = tr && tr.frame === i ? " hit" : "";
+      if (!f) return `<div class="fr free${hit}"><span class="fn">frame ${i}</span></div>`;
+      if (f.os) return `<div class="fr os"><span class="fn">frame ${i}</span><b style="color:inherit">OS</b></div>`;
+      const last = f.page === f.p.alloc.pt.length - 1, w = last ? f.p.alloc.pt.length*PAGE - f.p.prog.kb : 0;
+      return `<div class="fr p${hit}" style="--c:${f.p.color}"><span class="fn">frame ${i}</span><b>${f.p.name}·p${f.page}</b>${w ? `<span class="w">${w} KB unused</span>` : ""}</div>`;
+    }).join("")}</div>`;
+  } else {
+    let inner = `<div class="blk os" style="left:0;width:${pct(OSK)}">OS<small>16 KB</small></div>`;
+    let holes = [];
+    if (m === "fixed"){
+      sub = "Dashed outlines are free partitions. Hatching inside a process block is internal waste.";
+      for (const part of st.parts){
+        if (part.owner) inner += blockHTML(part.owner, part.start, part.size, {title:part.owner.name, used:part.owner.prog.kb}, `${part.owner.prog.kb} of ${part.size} KB`);
+        else inner += `<div class="blk part" style="left:${pct(part.start)};width:${pct(part.size)}">${part.size} KB free</div>`;
+      }
+    } else if (m === "dynamic" || m === "seg"){
+      sub = m === "dynamic" ? "Each process gets exactly what it needs, in one piece. Hatched gaps are holes." : "Each segment is placed on its own. A process can be spread across memory.";
+      for (const r of st.regs){
+        const t = m === "seg" ? `${r.p.name} ${r.seg}` : r.p.name;
+        inner += blockHTML(r.p, r.start, r.size, {title:t, used:r.size}, `${r.size} KB`);
+      }
+      holes = holesOf(st.regs);
+      if (m === "dynamic" && ui.fit === "next") inner += `<div class="ptr" style="left:${pct(Math.min(st.ptr, MEM-0.5))}" title="Next fit resumes here"></div>`;
+    } else if (m === "buddy"){
+      sub = "Blocks are powers of two. Hatching inside a block is internal waste from rounding up.";
+      for (const n of ALLOC.buddy.leaves(st.root)){
+        if (n.state === "used" && !n.os) inner += blockHTML(n.p, n.start, n.size, {title:n.p.name, used:n.p.prog.kb}, `${n.p.prog.kb} of ${n.size} KB`);
+        if (n.state === "free") holes.push({start:n.start, size:n.size});
+      }
+    }
+    for (const h of holes) if (h.size >= 6) inner += `<div class="hole" style="left:${pct(h.start)};width:${pct(h.size)}"><span>${h.size} KB</span></div>`;
+    inner += markerHTML(phys, physLab);
+    html = `<div class="barwrap"><div class="bar">${inner}</div>${axisHTML()}</div>`;
+    if (m === "buddy") html += `<div class="tree">${buddyTreeSVG(st)}</div>`;
+  }
+  $("#memView").innerHTML = html;
+  $("#memTitle").textContent = `Main memory: ${MODELS[m].name.toLowerCase()}`;
+  $("#memSub").textContent = sub;
+}
+
+function buddyTreeSVG(st){
+  const W = 800, padX = 12, lv = s => Math.log2(MEM / s), y = s => 18 + lv(s) * 40, x = (st0, s) => padX + (st0 + s/2) / MEM * (W - 2*padX);
+  let lines = "", nodes = "";
+  (function walk(n){
+    const cx = x(n.start, n.size), cy = y(n.size);
+    if (n.state === "split"){
+      for (const k of n.kids){ lines += `<line x1="${cx}" y1="${cy}" x2="${x(k.start,k.size)}" y2="${y(k.size)}"/>`; walk(k); }
+      nodes += `<circle cx="${cx}" cy="${cy}" r="9" style="fill:var(--panel);stroke:var(--muted)" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+    } else if (n.os){
+      nodes += `<circle cx="${cx}" cy="${cy}" r="11" style="fill:var(--ink)"/><text x="${cx}" y="${cy+4}" text-anchor="middle" style="fill:var(--panel);font-weight:600">OS</text>`;
+    } else if (n.state === "used"){
+      nodes += `<circle cx="${cx}" cy="${cy}" r="11" style="fill:${n.p.color}"/><text x="${cx}" y="${cy+4}" text-anchor="middle" style="fill:var(--panel);font-weight:600">${n.p.name}</text>`;
+    } else {
+      nodes += `<circle cx="${cx}" cy="${cy}" r="9" style="fill:var(--bg);stroke:var(--line)" stroke-width="2"/>`;
+    }
+  })(st.root);
+  let labels = "";
+  for (let s = MEM; s >= 4; s /= 2) labels += `<text x="${W-4}" y="${y(s)+4}" text-anchor="end">${s} KB</text>`;
+  return `<svg viewBox="0 0 ${W} ${y(4)+18}" role="img" aria-label="Buddy tree: dashed nodes are split, filled nodes are allocated, hollow nodes are free">${lines}${nodes}${labels}</svg>`;
+}
+
+function renderStats(st){
+  const s = st.stats, m = st.model;
+  const items = [
+    ["Loaded", s.loaded, ""],
+    ["Waiting", s.waiting + s.rejected, s.waiting + s.rejected ? "bad" : ""],
+    ["Programs need", kb(s.prog), ""],
+    ["Internal waste", kb(s.internal), s.internal ? "bad" : ""],
+    [m === "paging" ? "Free frames" : "Free", m === "paging" ? `${s.free/PAGE} (${kb(s.free)})` : kb(s.free), ""],
+    ["Largest free block", m === "paging" ? (s.free ? "any frame" : "none") : kb(s.largest), ""]
+  ];
+  $("#stats").innerHTML = items.map(([l,v,c]) => `<div class="stat ${c}"><b>${v}</b>${l}</div>`).join("");
+  const note = $("#note");
+  note.innerHTML = st.note || "Load a program to see where it goes.";
+  note.className = "note" + (st.noteWarn ? " warn" : "");
+}
+
+function renderSide(st){
+  const m = st.model, live = st.procs.filter(p => p.status === "loaded");
+  const sw = p => `<span class="sw" style="--c:${p.color}"></span>`;
+  let h = "";
+  if (m === "fixed"){
+    h = `<div><h3>Partition table</h3><div class="tw"><table><tr><th>#</th><th>Start</th><th>Size</th><th>Holds</th><th>Waste</th></tr>${
+      st.parts.map((x,i) => `<tr><td>${i}</td><td class="m">${hx5(x.start)}</td><td>${kb(x.size)}</td><td>${x.owner ? sw(x.owner)+x.owner.name : "free"}</td><td>${x.owner ? kb(x.size - x.owner.prog.kb) : ""}</td></tr>`).join("")}</table></div></div>
+      <p class="foot">Partition sizes are fixed at boot. The number of partitions caps how many processes can be in memory.</p>`;
+  } else if (m === "dynamic"){
+    const hs = holesOf(st.regs);
+    h = `<div><h3>Base and limit, per process</h3>${live.length ? `<div class="tw"><table><tr><th>Process</th><th>Base</th><th>Limit</th></tr>${
+      live.map(p => `<tr><td>${sw(p)}${p.name}</td><td class="m">${hx5(p.alloc.start)}</td><td class="m">${hex(p.prog.kb*1024,4)}</td></tr>`).join("")}</table></div>` : `<p class="empty">None loaded.</p>`}</div>
+      <div><h3>Hole list</h3>${hs.length ? `<div class="tw"><table><tr><th>Start</th><th>Size</th></tr>${hs.map(x => `<tr><td class="m">${hx5(x.start)}</td><td>${kb(x.size)}</td></tr>`).join("")}</table></div>` : `<p class="empty">No holes: memory is full.</p>`}</div>`;
+  } else if (m === "buddy"){
+    const lv = ALLOC.buddy.leaves(st.root), counts = [];
+    for (let s = 4, o = 0; s <= MEM; s *= 2, o++) counts.push({o, s, n:lv.filter(x => x.state === "free" && x.size === s).length});
+    h = `<div><h3>Free lists, like /proc/buddyinfo</h3><div class="tw"><table><tr><th>Order</th>${counts.map(c => `<th>${c.o}</th>`).join("")}</tr>
+      <tr><td>Block</td>${counts.map(c => `<td>${c.s}K</td>`).join("")}</tr>
+      <tr><td>Free</td>${counts.map(c => `<td><b>${c.n}</b></td>`).join("")}</tr></table></div>
+      <p class="foot">Order n is a block of 2<sup>n</sup> pages of 4 KB. On Linux, <code>cat /proc/buddyinfo</code> prints the same counts.</p></div>
+      <div><h3>Allocated blocks</h3>${live.length ? `<div class="tw"><table><tr><th>Process</th><th>Block</th><th>Needs</th><th>Waste</th></tr>${
+        live.map(p => `<tr><td>${sw(p)}${p.name}</td><td>${kb(p.alloc.size)} at <span class="mono">${hx5(p.alloc.start)}</span></td><td>${kb(p.prog.kb)}</td><td>${kb(p.alloc.size - p.prog.kb)}</td></tr>`).join("")}</table></div>` : `<p class="empty">None loaded.</p>`}</div>`;
+  } else if (m === "paging"){
+    const free = []; st.frames.forEach((f,i) => { if (!f) free.push(i); });
+    h = `<div><h3>Page tables</h3>${live.length ? `<div class="ptables">${live.map(p => `<div class="ptab" style="--c:${p.color}"><h4>${p.name} <small>${p.prog.file}</small></h4><table><tr><th>Page</th><th>Frame</th></tr>${
+        p.alloc.pt.map((f,i) => `<tr><td>${i}</td><td>${f}</td></tr>`).join("")}</table></div>`).join("")}</div>` : `<p class="empty">None loaded.</p>`}</div>
+      <div><h3>Free-frame list</h3>${free.length ? `<div class="blist">${free.map(f => `<span>${f}</span>`).join("")}</div>` : `<p class="empty">No free frames.</p>`}</div>`;
+  } else {
+    const hs = holesOf(st.regs);
+    h = `<div><h3>Segment tables</h3>${live.length ? `<div class="ptables">${live.map(p => `<div class="ptab" style="--c:${p.color}"><h4>${p.name} <small>${p.prog.file}</small></h4><table><tr><th>#</th><th>Seg</th><th>Base</th><th>Length</th></tr>${
+        SEGS.map((s,i) => `<tr><td>${i}</td><td>${s}</td><td class="m">${hx5(p.alloc.segs[s].start)}</td><td class="m">${hex(p.alloc.segs[s].size*1024,4)}</td></tr>`).join("")}</table></div>`).join("")}</div>` : `<p class="empty">None loaded.</p>`}</div>
+      <div><h3>Hole list</h3>${hs.length ? `<div class="blist">${hs.map(x => `<span>${x.size} KB at ${hx5(x.start)}</span>`).join("")}</div>` : `<p class="empty">No holes.</p>`}</div>`;
+  }
+  $("#side").innerHTML = h;
+}
+
+// ===================== translation =====================
+function parseAddr(s){
+  s = String(s).trim().toLowerCase();
+  const v = s.startsWith("0x") ? parseInt(s.slice(2), 16) : /^[0-9]+$/.test(s) ? parseInt(s, 10) : NaN;
+  return Number.isFinite(v) && v >= 0 && v < 65536 ? v : null;
+}
+function bitsHTML(v, w, split, c){
+  const b = bin(v, w);
+  return `<span class="bits" style="--c:${c}"><span class="hi">${b.slice(0, split)}</span><span class="lo">${b.slice(split)}</span></span>`;
+}
+
+function translate(st){
+  const p = st.procs.find(x => x.name === ui.trProc && x.status === "loaded");
+  if (!p) return {steps:[`<li class="fault"><span>Load a process first, then pick it here.</span></li>`]};
+  const m = st.model, steps = [];
+  if (m === "seg"){
+    const si = SEGS.indexOf(ui.trSeg), off = parseAddr(ui.trOff);
+    if (off == null) return {steps:[`<li class="fault"><span class="result">Enter the offset in hex (like 0x0010) or decimal.</span></li>`]};
+    const s = p.alloc.segs[ui.trSeg], len = s.size*1024, base = s.start*1024;
+    steps.push(`<li><span>Logical address = segment <b>${si}</b> (${ui.trSeg}), offset <span class="mono">${hex(off,4)}</span>.</span></li>`);
+    steps.push(`<li><span>Look up segment ${si} in ${nameChip(p)}'s segment table: base <span class="mono">${hex(base,5)}</span>, length <span class="mono">${hex(len,4)}</span> (${kb(s.size)}).</span></li>`);
+    if (off >= len){
+      steps.push(`<li class="fault"><span class="result">Offset ${hex(off,4)} ≥ length ${hex(len,4)}: invalid address. The hardware traps and the OS kills ${p.name} (segmentation fault).</span></li>`);
+      return {steps};
+    }
+    const phys = base + off;
+    steps.push(`<li><span>Check: offset ${hex(off,4)} &lt; length ${hex(len,4)}. Allowed.</span></li>`);
+    steps.push(`<li class="res"><span class="result">Physical address = base + offset = ${hex(base,5)} + ${hex(off,4)} = ${hex(phys,5)}</span></li>`);
+    return {steps, phys};
+  }
+  const a = parseAddr(ui.trAddr);
+  if (a == null) return {steps:[`<li class="fault"><span class="result">Enter a logical address between 0x0000 and 0xFFFF.</span></li>`]};
+  if (m === "paging"){
+    const page = a >> 12, off = a & 0xFFF, pt = p.alloc.pt;
+    steps.push(`<li><span>Split the 16-bit logical address: 4 KB pages, so the low 12 bits are the offset and the high 4 bits are the page number.<br>${bitsHTML(a, 16, 4, p.color)} = page <b>${page}</b>, offset <span class="mono">${hex(off,3)}</span></span></li>`);
+    if (page >= pt.length){
+      steps.push(`<li class="fault"><span class="result">Page ${page} is beyond ${p.name}'s page table (pages 0 to ${pt.length-1}). The hardware traps and the OS kills ${p.name} (segmentation fault).</span></li>`);
+      return {steps};
+    }
+    const fr = pt[page], phys = fr*4096 + off;
+    steps.push(`<li><span>Look up page ${page} in ${nameChip(p)}'s page table: frame <b>${fr}</b>.</span></li>`);
+    steps.push(`<li class="res"><span class="result">Physical address = frame number followed by offset<br>${bitsHTML(phys, 17, 5, p.color)} = ${hex(phys,5)}</span></li>`);
+    return {steps, phys, frame:fr};
+  }
+  const base = p.alloc.start*1024, lim = p.prog.kb*1024;
+  steps.push(`<li><span>${nameChip(p)} is contiguous: base register <span class="mono">${hex(base,5)}</span>, limit register <span class="mono">${hex(lim,4)}</span> (${kb(p.prog.kb)}).</span></li>`);
+  if (a >= lim){
+    steps.push(`<li class="fault"><span class="result">Logical ${hex(a,4)} ≥ limit ${hex(lim,4)}: out of bounds. The hardware traps before touching memory, and the OS kills ${p.name} (segmentation fault).</span></li>`);
+    return {steps};
+  }
+  steps.push(`<li><span>Check: ${hex(a,4)} &lt; limit ${hex(lim,4)}. Allowed.</span></li>`);
+  const phys = base + a;
+  steps.push(`<li class="res"><span class="result">Physical address = base + logical = ${hex(base,5)} + ${hex(a,4)} = ${hex(phys,5)}</span></li>`);
+  if (m === "fixed" || m === "buddy"){
+    const extra = p.alloc.size - p.prog.kb;
+    if (extra) steps.push(`<li><span>The ${kb(extra)} at the end of ${p.name}'s ${m === "fixed" ? "partition" : "block"} is allocated but unused. The limit stays at the program size, so ${p.name} cannot touch it either.</span></li>`);
+  }
+  return {steps, phys};
+}
+
+function renderTranslateForm(st){
+  const live = st.procs.filter(p => p.status === "loaded");
+  if (!live.find(p => p.name === ui.trProc)) ui.trProc = live.length ? live[0].name : null;
+  const procSel = `<label class="gl" for="trProc">Process</label><select id="trProc">${live.map(p => `<option value="${p.name}"${p.name === ui.trProc ? " selected" : ""}>${p.name} ${esc(p.prog.file)}</option>`).join("") || `<option>none loaded</option>`}</select>`;
+  if (st.model === "seg"){
+    $("#tform").innerHTML = `${procSel}<label class="gl" for="trSeg">Segment</label><select id="trSeg">${SEGS.map((s,i) => `<option value="${s}"${s === ui.trSeg ? " selected" : ""}>${i}: ${s}</option>`).join("")}</select>
+      <label class="gl" for="trOff">Offset</label><input id="trOff" value="${esc(ui.trOff)}" spellcheck="false" autocomplete="off">`;
+    $("#presets").innerHTML = [["data","0x0010","A global variable"],["stack","0x1FFC","Top of stack"],["code","0x0000","First instruction"],["data","0x9000","Bug: past the end"]]
+      .map(([s,o,l]) => `<button type="button" data-ps="${s}" data-po="${o}">${l}</button>`).join("");
+  } else {
+    $("#tform").innerHTML = `${procSel}<label class="gl" for="trAddr">Logical address</label><input id="trAddr" value="${esc(ui.trAddr)}" spellcheck="false" autocomplete="off">`;
+    const p = live.find(x => x.name === ui.trProc), top = p ? hex(p.prog.kb*1024 - 4, 4) : "0x5FFC";
+    $("#presets").innerHTML = [["0x0000","First instruction"],["0x1000","Global total"],[top,"Top of stack"],["0x9000","Bug: past the end"]]
+      .map(([a,l]) => `<button type="button" data-pa="${a}">${l} <span class="mono">${a}</span></button>`).join("") + `<button type="button" id="btnRand">Random</button>`;
+  }
+}
+
+// ===================== compare =====================
+function renderCompare(){
+  const rows = Object.keys(MODELS).map(k => ({k, s:simulate(k, opts()).stats}));
+  const min = f => Math.min(...rows.map(r => f(r.s))), max = f => Math.max(...rows.map(r => f(r.s)));
+  const cell = (r, f, fmt, good) => {
+    const v = f(r.s), best = good === "low" ? min(f) : max(f), worst = good === "low" ? max(f) : min(f);
+    const c = best !== worst ? (v === best ? "best" : v === worst ? "worst" : "") : "";
+    return `<td class="${c}">${fmt(v)}</td>`;
+  };
+  $("#cmp").innerHTML = `<tr><th>Model</th><th>Loaded</th><th>Not loaded</th><th>Internal waste</th><th>Largest free block</th></tr>` +
+    rows.map(r => `<tr class="${r.k === ui.model ? "cur" : ""}"><td>${MODELS[r.k].name}${r.k === "dynamic" ? ` <small class="gl">(${FITNAME[ui.fit].toLowerCase()})</small>` : r.k === "fixed" ? ` <small class="gl">(${ui.fixedKind})</small>` : ""}</td>
+      ${cell(r, s => s.loaded, v => v, "high")}${cell(r, s => s.waiting + s.rejected, v => v, "low")}
+      ${cell(r, s => s.internal, v => kb(v), "low")}${cell(r, s => r.k === "paging" ? s.free : s.largest, v => kb(v), "high")}</tr>`).join("");
+}
+
+// ===================== main render =====================
+let current = null;
+function render(){
+  current = simulate(ui.model, opts());
+  renderModels(); renderProcs(current); renderTranslateForm(current);
+  const tr = translate(current);
+  $("#steps").innerHTML = tr.steps.join("");
+  renderMemory(current, tr); renderStats(current); renderSide(current); renderCompare();
+  const items = current.log.slice(-40).reverse();
+  $("#log").innerHTML = items.length ? items.map(e => `<li class="${e.warn ? "warn" : ""}"><span class="t">#${e.t}</span><span>${e.html}</span></li>`).join("") : `<li><span></span><span class="empty">Nothing yet.</span></li>`;
+}
+function rerenderTranslation(){
+  const tr = translate(current);
+  $("#steps").innerHTML = tr.steps.join("");
+  renderMemory(current, tr);
+}
+
+// ===================== actions =====================
+let colorIdx = 0, letterIdx = 0;
+function load(prog){
+  if (history.filter(h => h.op === "load").length >= LETTERS.length){ return; }
+  const name = LETTERS[letterIdx++], ci = colorIdx++;
+  history.push({op:"load", prog, name, ci});
+  ui.trProc = name;
+}
+function sample(){
+  history = []; colorIdx = 0; letterIdx = 0;
+  load("sum"); load("readfile"); load("counter");
+  history.push({op:"free", name:"B"});
+  load("bigdata");
+  ui.trProc = "A"; ui.trAddr = "0x1000";
+}
+
+$("#prog").innerHTML = Object.entries(PROGS).map(([k,p]) => `<option value="${k}">${p.file}, ${p.kb} KB</option>`).join("");
+$("#btnLoad").addEventListener("click", () => { load($("#prog").value); render(); });
+$("#btnCompact").addEventListener("click", () => { history.push({op:"compact"}); render(); });
+$("#btnSample").addEventListener("click", () => { sample(); render(); });
+$("#btnReset").addEventListener("click", () => { history = []; colorIdx = 0; letterIdx = 0; ui.trProc = null; render(); });
+$("#fit").addEventListener("change", e => { ui.fit = e.target.value; render(); });
+$("#fixedKind").addEventListener("change", e => { ui.fixedKind = e.target.value; render(); });
+$("#models").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; ui.model = b.dataset.m; render(); });
+$("#plist").addEventListener("click", e => { const b = e.target.closest("[data-free]"); if (!b) return; history.push({op:"free", name:b.dataset.free}); render(); });
+$("#tform").addEventListener("change", e => {
+  if (e.target.id === "trProc"){ ui.trProc = e.target.value; render(); }
+  if (e.target.id === "trSeg"){ ui.trSeg = e.target.value; rerenderTranslation(); }
+});
+$("#tform").addEventListener("input", e => {
+  if (e.target.id === "trAddr"){ ui.trAddr = e.target.value; rerenderTranslation(); }
+  if (e.target.id === "trOff"){ ui.trOff = e.target.value; rerenderTranslation(); }
+});
+$("#presets").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "btnRand"){
+    const p = current.procs.find(x => x.name === ui.trProc && x.status === "loaded");
+    const lim = p ? p.prog.kb*1024 : 0x6000;
+    ui.trAddr = hex(Math.floor(Math.random() * (lim + 0x2000)) & 0xFFFC, 4);
+  } else if (b.dataset.pa){ ui.trAddr = b.dataset.pa; }
+  else { ui.trSeg = b.dataset.ps; ui.trOff = b.dataset.po; }
+  renderTranslateForm(current); rerenderTranslation();
+});
+
+sample();
+render();
+})();
+</script>
+
+</body></html>
